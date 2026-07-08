@@ -1,0 +1,31 @@
+avior: 1
+project:
+  name: minimal-example
+  validation_dir: validation
+scope:
+  lockfile: renv.lock
+  intended_for_use: auto        # 从 analysis/*.R 的 library()/:: 调用自动识别
+  include: []
+  exclude: []
+  custom_orgs: []               # 本例无自研包
+policy:
+  engine: riskmetric
+  weights:                      # 指标 id 引用 riskmetric 适配层注册表
+    has_vignettes: 0.5
+    has_news: 0.5
+    has_bug_reports_url: 0.5
+    downloads_1yr: 1.0
+    covr_coverage: 2.0          # 统计计算项目，覆盖率权重加大
+    bugs_status: 1.0
+  risk_tiers: { low_max: 0.25, high_min: 0.55 }
+  na_action: reweight
+  rationale: >
+    阈值参考 pharmaR/riskassessment 默认配置，经统计编程组 2026-07 评审会确认。
+    covr_coverage 加权 2.0，因本项目以统计建模为主，测试覆盖是关键信号。
+depth_by_risk:
+  low: metadata_only
+  medium: use_statement_required
+  high: targeted_tests_required
+report:
+  formats: [html, docx]
+  language: zh

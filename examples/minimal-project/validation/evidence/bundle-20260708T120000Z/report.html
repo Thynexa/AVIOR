@@ -1,0 +1,98 @@
+<meta charset="utf-8">
+<title>AVIOR 验证证据报告 · minimal-example</title>
+<style>
+  body { font: 15px/1.6 -apple-system, "Segoe UI", "Noto Sans CJK SC", sans-serif;
+         max-width: 900px; margin: 2rem auto; padding: 0 1.2rem; color: #1a1a1a; }
+  h1 { font-size: 1.7rem; border-bottom: 3px solid #2b5c8a; padding-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2rem; color: #2b5c8a;
+       border-left: 4px solid #2b5c8a; padding-left: .6rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: 14px; }
+  th, td { border: 1px solid #cbd5e0; padding: .45rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #edf2f7; }
+  .meta td:first-child { font-weight: 600; width: 220px; background: #f7fafc; }
+  .banner { background: #fffbea; border: 1px solid #f0c000; border-radius: 6px;
+            padding: .7rem 1rem; margin: 1rem 0; }
+  .ok { color: #1a7f37; font-weight: 600; }
+  .low { color: #1a7f37; } .high { color: #b42318; font-weight: 600; } .exempt { color: #667085; }
+  code { background: #f0f2f5; padding: .1rem .35rem; border-radius: 3px; font-size: 13px; }
+  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #cbd5e0;
+           font-size: 13px; color: #667085; }
+</style>
+
+<h1>AVIOR 验证证据报告</h1>
+<p><strong>R 包环境验证 · 项目 minimal-example</strong></p>
+
+<table class="meta">
+  <tr><td>证据包 ID</td><td><code>bundle-20260708T120000Z</code></td></tr>
+  <tr><td>生成时间（UTC）</td><td>2026-07-08T12:00:00Z</td></tr>
+  <tr><td>AVIOR 版本</td><td>0.1.0-dev</td></tr>
+  <tr><td>评估引擎</td><td>riskmetric 0.2.4</td></tr>
+  <tr><td>R 版本 / 平台</td><td>4.3.2 · x86_64-pc-linux-gnu</td></tr>
+  <tr><td>依赖快照</td><td>CRAN @ 2024-01-15（Posit Package Manager）</td></tr>
+  <tr><td>完整性校验</td><td><span class="ok">通过</span>（详见 MANIFEST.sha256）</td></tr>
+</table>
+
+<div class="banner">
+  <strong>⚠ 示意证据包（M0 格式评审用）。</strong>
+  本包为无 R 环境下手工组装，用于确认格式能否进入签署流程。
+  其中<strong>风险评分为示意值</strong>，真实运行时由 riskmetric 引擎产出；
+  签署与受控归档在客户 QMS 中完成，AVIOR 不代签。
+</div>
+
+<h2>1. 方法论与合规锚点</h2>
+<p>本验证遵循 <strong>R Validation Hub 白皮书风险评估四准则</strong>（用途/类型、维护、社区使用、测试），
+对齐 <strong>ISPE GAMP 5</strong> 最小交付物（规范、风险评估、测试、追溯矩阵），
+并采用 <strong>intended-for-use 聚焦原则</strong>：深度验证只针对项目直接调用的包，
+间接依赖仅做版本管理。合规责任主体为申办方，本报告仅为证据之一。</p>
+
+<h2>2. 范围与包分类</h2>
+<p>依据 <code>renv.lock</code> 与项目源码分析，共 4 个包，按三分类与调用角色处理如下：</p>
+<table>
+  <tr><th>包</th><th>版本</th><th>分类</th><th>角色</th><th>处理</th></tr>
+  <tr><td>jsonlite</td><td>1.8.8</td><td>contributed</td><td>direct</td><td>纳入评估</td></tr>
+  <tr><td>lme4</td><td>1.1-35.1</td><td>contributed</td><td>direct</td><td>纳入评估</td></tr>
+  <tr><td>survival</td><td>3.5-7</td><td class="exempt">recommended</td><td>direct</td><td>随 R 分发，低风险豁免</td></tr>
+  <tr><td>minqa</td><td>1.2.6</td><td>contributed</td><td class="exempt">transitive</td><td>间接依赖，仅版本管理</td></tr>
+</table>
+
+<h2>3. 风险评分与阈值</h2>
+<p>阈值：low ≤ 0.25 &lt; medium &lt; 0.55 ≤ high。阈值来源见策略文件 <code>rationale</code> 字段（审计辩护依据）。</p>
+<table>
+  <tr><th>包</th><th>风险分</th><th>档位</th><th>说明</th></tr>
+  <tr><td>jsonlite</td><td>0.12</td><td class="low">low</td><td>成熟稳定，元数据信号良好</td></tr>
+  <tr><td>lme4</td><td>0.58</td><td class="high">high</td><td>复杂统计计算 + 覆盖率信号偏低；非质量缺陷</td></tr>
+</table>
+
+<h2>4. 决策汇总</h2>
+<table>
+  <tr><th>包</th><th>决策</th><th>用途声明</th><th>理由</th><th>评审人</th></tr>
+  <tr><td>jsonlite</td><td>include</td><td>结果序列化为 JSON 落盘</td><td>低风险，用途简单无数值计算风险</td><td>jin@example.com</td></tr>
+  <tr><td>lme4</td><td>include_with_tests</td><td>lmer 拟合混合效应模型（主要疗效分析）</td><td>高风险，针对用途补充金标准比对测试后纳入</td><td>jin@example.com</td></tr>
+</table>
+
+<h2>5. 测试证据</h2>
+<p>对 <code>include_with_tests</code> 的包运行针对声明用途的定向测试：</p>
+<table>
+  <tr><th>测试文件</th><th>被测包</th><th>用例</th><th>通过</th><th>失败</th><th>状态</th></tr>
+  <tr><td>tests/test-lme4-fit.R</td><td>lme4 1.1-35.1</td><td>2</td><td>2</td><td>0</td><td class="ok">pass</td></tr>
+</table>
+<p>覆盖率作为参考指标采集，不作门禁阈值（覆盖率高 ≠ 关键函数被测到）。</p>
+
+<h2>6. 环境与可复现性</h2>
+<table class="meta">
+  <tr><td>R 版本</td><td>4.3.2</td></tr>
+  <tr><td>平台</td><td>x86_64-pc-linux-gnu</td></tr>
+  <tr><td>仓库快照</td><td>CRAN @ 2024-01-15（PPM）</td></tr>
+  <tr><td>renv.lock 指纹</td><td>见 environment.json 的 lockfile.sha256</td></tr>
+</table>
+<p>凭 <code>environment.json</code> 的仓库快照与 lockfile 指纹可完全复现本次评估的包环境。</p>
+
+<h2>附录 · 完整性</h2>
+<p>本证据包所有文件的 SHA-256 记录于 <code>MANIFEST.sha256</code>。
+审计员可用 <code>avior verify</code>（或标准 <code>sha256sum -c</code>）独立校验，无需项目上下文。
+输入快照存于 <code>snapshot/</code>，为编译时点的策略、清单、评分、决策、测试结果副本。</p>
+
+<footer>
+  由 AVIOR 0.1.0-dev 编译 · 证据即文件，签署留在客户 QMS ·
+  本报告随证据包不可变分发，任何修改都会导致 MANIFEST 校验失败。
+</footer>

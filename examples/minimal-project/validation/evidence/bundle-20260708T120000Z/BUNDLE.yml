@@ -1,0 +1,13 @@
+avior: 1
+bundle_id: bundle-20260708T120000Z
+generated_at: "2026-07-08T12:00:00Z"
+generated_by: { avior_version: "0.1.0-dev", engine: "riskmetric 0.2.4", r_version: "4.3.2" }
+project:
+  name: minimal-example
+  lockfile_sha256: "026afa0428661d0554435ce2e3b1cb6d8bf1e8be2edf1c10ca71a99fda5eeb5e"
+  policy_sha256: "56e1b2aee3aeb0d2d77aead355a0e1c38924c997985fbb73f40238ead451b080"
+integrity_check: passed
+counts: { packages_total: 4, assessed: 2, decisions_signed: 2, tests_run: 1 }
+note: >
+  ILLUSTRATIVE bundle assembled by hand for M0 format review.
+  Risk scores are placeholder values; a real run produces them via riskmetric.

@@ -1,0 +1,12 @@
+avior: 1
+package: jsonlite
+version: "1.8.8"
+score_snapshot: { score: 0.12, tier: low, scored_at: "2026-07-08T11:40:00Z", engine: "riskmetric 0.2.4" }
+use_statement: "将结果对象序列化为 JSON 落盘（write_json）。"
+decision: include                 # 低风险 → 仅元数据评估即可纳入
+rationale: "低风险；成熟稳定的序列化包，团队长期使用，用途简单无数值计算风险。"
+tests: []
+reviewed_by: "jin@example.com"
+date: "2026-07-08"
+ai_assisted: false
+confirmed_by: null

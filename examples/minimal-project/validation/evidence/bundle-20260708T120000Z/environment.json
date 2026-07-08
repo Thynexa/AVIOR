@@ -1,0 +1,12 @@
+{
+  "avior_version": "0.1.0-dev",
+  "generated_at": "2026-07-08T12:00:00Z",
+  "r_version": "4.3.2",
+  "platform": "x86_64-pc-linux-gnu",
+  "repositories": [
+    { "name": "CRAN", "url": "https://packagemanager.posit.co/cran/2024-01-15", "snapshot": "2024-01-15" }
+  ],
+  "lockfile": { "path": "renv.lock", "sha256": "026afa0428661d0554435ce2e3b1cb6d8bf1e8be2edf1c10ca71a99fda5eeb5e" },
+  "engine": { "id": "riskmetric", "version": "0.2.4" },
+  "package_count": { "total": 4, "in_scope_assessed": 2, "recommended_exempt": 1, "transitive": 1 }
+}
