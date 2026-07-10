@@ -2,7 +2,7 @@
 
 这是一份**手工组装的最小样例证据包**（对应 PRD 的 M0 里程碑）。目的：在写任何代码之前，先确认「证据即文件 + git 留痕 + 哈希清单」这套证据形态**能否进入真实的 QA 签署流程**。
 
-一个 4 包的假想 R 项目，覆盖了所有关键情形：三分类、直接/间接调用、低/高风险、两种决策、定向测试。
+一个 4 包的假想 R 项目，覆盖了所有关键情形：三分类、直接/间接调用、低/高风险、两种决策、定向测试、recommended 包被 `scope.include` 强制纳入。
 
 > ⚠️ **示意值声明**：本示例在无 R 环境下手工组装，`scores.yml` 中的风险分为**示意值**，真实运行时由 riskmetric 引擎产出。其余结构（清单、决策、追溯矩阵、环境指纹、哈希清单）均为最终格式。
 
@@ -33,15 +33,18 @@ minimal-project/
     ├── test-results.yml               # ③ test 产出
     ├── decisions/
     │   ├── jsonlite.yml               # ② 人工：低风险 → include
-    │   └── lme4.yml                   # ② 人工：高风险 → include_with_tests
-    ├── tests/test-lme4-fit.R          # ② 人工：针对用途的定向测试
+    │   ├── lme4.yml                   # ② 人工：高风险 → include_with_tests
+    │   └── survival.yml               # ② 人工：recommended 强制纳入 → include_with_tests
+    ├── tests/
+    │   ├── test-lme4-fit.R            # ② 人工：针对用途的定向测试
+    │   └── test-survival-coxph.R      # ② 人工：强制纳入包同样要补定向测试
     └── evidence/bundle-20260708T120000Z/   # ③ bundle 产出（不可变证据包）
         ├── report.html               # 验证报告（GAMP 5 叙事结构）
         ├── traceability.csv          # 追溯矩阵：每行一条完整证据链
         ├── environment.json          # 环境指纹（R 版本/快照/lockfile 哈希）
         ├── BUNDLE.yml                # 元数据 + 完整性状态
         ├── snapshot/                 # 编译时点的输入快照副本
-        └── MANIFEST.sha256           # 全文件哈希 → 防篡改（已实测校验通过）
+        └── MANIFEST.sha256           # 全文件哈希 → 内部一致性校验（防篡改锚点在外部，见下）
 ```
 
 ## 这 4 个包演示了什么
@@ -50,8 +53,10 @@ minimal-project/
 | --- | --- | --- | --- | --- | --- |
 | `jsonlite` | contributed | direct | low (0.12) | include | 低风险仅元数据评估 |
 | `lme4` | contributed | direct | high (0.58) | include_with_tests | 高风险必须配定向测试 |
-| `survival` | **recommended** | direct | — | exempt | 随 R 分发，三分类豁免 |
+| `survival` | **recommended**（强制纳入） | direct | high (0.61) | include_with_tests | recommended 默认豁免**不是铁律**：因承担主分析（coxph）经 `scope.include` 拉回范围，照常评分/决策/补测 |
 | `minqa` | contributed | **transitive** | — | version_managed | intended-for-use 聚焦：间接依赖不深验 |
+
+> recommended 包的**默认豁免路径**（不评分、不深验）本例未单独演示——规则见 PRD §5.2「范围规则」：豁免是默认值，intended-use 重要性可经 `scope.include` 覆盖，覆盖行为记录进 `inventory.yml`（`overridden: true`）。
 
 ---
 
@@ -63,7 +68,9 @@ minimal-project/
    ```bash
    cd validation/evidence/bundle-20260708T120000Z && sha256sum -c MANIFEST.sha256
    ```
-   任何一个字节被改动都会导致对应文件校验失败 —— 这就是 `avior verify` 的内核。
+   任何一个字节被意外改动都会导致对应文件校验失败 —— 这就是 `avior verify` 的内核。
+
+   **信任边界**：manifest 只保证 bundle 的**内部一致性**。对脱离 git 的松散目录 / zip，能改文件者亦能重算改写 `MANIFEST.sha256`，校验照常通过——所以 detached bundle 的**防篡改锚点是外部的**：本示例的锚点是 `evidence/` 所在的 **git 提交哈希**（公理 2「git 留痕」的意义所在）；交付客户后则是 **QMS 归档记录**或**独立签名**。归档时建议把 manifest 自身的 SHA-256 一并记入提交信息 / 归档记录（PRD FR-VERIFY-3）。
 
 ---
 

@@ -19,4 +19,10 @@ packages:
     score: 0.58
     tier: high
     note: "高风险主因：复杂统计计算 + 覆盖率信号偏低；非质量缺陷，需针对用途补测"
+  survival:
+    version: "3.5-7"
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.90, covr_coverage: 0.28, bugs_status: 0.50 }
+    score: 0.61
+    tier: high
+    note: "recommended 包，经 scope.include 强制纳入后照常评分；高风险源于社区指标（覆盖率信号）而非质量缺陷"
 na_metrics: []

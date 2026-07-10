@@ -144,18 +144,20 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
 | FR-SCAN-1 | 解析 `renv.lock`（首选）或 `DESCRIPTION`，产出包清单 `validation/inventory.yml`（生成物，纳入 git） | P0 |
-| FR-SCAN-2 | 三分类：`base`/`recommended`（按 R 发行优先级字段）、`contributed`、`custom`（依 renv 来源为 GitHub/local/私有仓库，或 `scope.custom_orgs` 规则） | P0 |
+| FR-SCAN-2 | 三分类：`base`/`recommended`（按 R 发行优先级字段）、`contributed`、`custom`（依 renv 来源为 GitHub/local/私有仓库，或 `scope.custom_orgs` 规则）；`base`/`recommended` **默认**不纳入评分与深验（随 R 发行分发，视为低风险） | P0 |
 | FR-SCAN-3 | intended-for-use 识别：静态扫描项目 R 源码中的 `library()`/`require()`/`pkg::` 调用，区分 `direct`（直接调用）与 `transitive`（间接依赖）；每个判定附出处（文件:行 或 DESCRIPTION 字段） | P0 |
-| FR-SCAN-4 | 人工覆盖：`scope.include`/`scope.exclude` 强制调整清单，覆盖行为本身记录进 inventory（`overridden: true` + 来源） | P0 |
+| FR-SCAN-4 | 人工覆盖：`scope.include`/`scope.exclude` 强制调整清单，覆盖行为本身记录进 inventory（`overridden: true` + 来源）；`scope.include` 可将默认豁免的 `base`/`recommended` 包**拉回评估范围**，纳入后照常评分、决策与补测 | P0 |
 | FR-SCAN-5 | inventory 记录 lockfile 的 SHA-256，作为后续漂移检测基准 | P0 |
 
 **AC**：对 design partner 项目（约 50 包），直接调用识别与人工核对清单的差异 ≤ 10%，且全部差异可经 FR-SCAN-4 修正；重复执行输出字节一致。
+
+> **范围规则（明确口径）**：「recommended = 豁免」是**默认值而非铁律**。四准则第一条是**用途**——当一个 `recommended` 包承担主分析统计量（如 `survival` 的 coxph）时，intended-use 重要性优先于发行优先级，应经 `scope.include` 强制纳入并走完整评分/决策/补测链路（§6.3 示例即此情形）。
 
 ### 5.3 `avior assess` —— 风险评分
 
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
-| FR-ASSESS-1 | 对 inventory 中 `contributed` 且在验证范围内的包，经适配层批量评分，按策略权重聚合为 0–1 风险分，写入 `validation/scores.yml`（纳入 git） | P0 |
+| FR-ASSESS-1 | 对 inventory 中在验证范围内（`in_scope: true`）的包——默认为 `contributed`/`custom`，也含经 `scope.include` 强制纳入的 `base`/`recommended` 包——经适配层批量评分，按策略权重聚合为 0–1 风险分，写入 `validation/scores.yml`（纳入 git） | P0 |
 | FR-ASSESS-2 | 按 `policy.risk_tiers` 阈值给出风险档（low/medium/high） | P0 |
 | FR-ASSESS-3 | 指标缺失（如离线导致下载量不可得）记为 `NA` 并列入 `na_metrics`，聚合时按策略声明的处理方式（`na_action: reweight\|zero\|fail`）处理；NA 情况必须在报告中可见 | P0 |
 | FR-ASSESS-4 | 支持离线评估：优先从本地已安装包/本地元数据评估；需要网络的指标在离线时走 FR-ASSESS-3 路径，不阻断整体评分 | P0 |
@@ -217,8 +219,11 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | --- | --- | --- |
 | FR-VERIFY-1 | 对指定 bundle（目录或 zip）重算全部文件哈希并与 `MANIFEST.sha256` 比对，输出通过/篡改明细 | P0 |
 | FR-VERIFY-2 | 面向审计员的独立可用性：不依赖项目上下文与配置文件，仅凭 bundle 本身即可运行 | P0 |
+| FR-VERIFY-3 | 校验通过时同时输出 `MANIFEST.sha256` **自身**的 SHA-256（锚点值），供与 git 提交、QMS 归档记录或独立签名比对 | P1 |
 
 **AC**：篡改 bundle 内任意一个字节，verify 必须报出具体文件。
+
+> **信任边界（审计口径，ALCOA+ 评审必问）**：manifest 只保证 bundle 的**内部一致性**——防意外损坏与幼稚篡改有效。对脱离 git 的松散目录 / zip，能改文件者亦能重算并改写 `MANIFEST.sha256`，此时 verify 照常通过。**detached bundle 的防篡改锚点是外部的**：`evidence/` 所在的 git 提交哈希（本工具默认路径，公理 2「证据即文件 + git 留痕」的「留痕」半边即指此）、客户 QMS 归档记录、或独立签名——manifest 本身不是信任根。`BUNDLE.yml` 的 `integrity_check` 为**生成时点**执行的自证结果，同样不构成信任根。推荐做法：归档时把 manifest 自身的 SHA-256（FR-VERIFY-3 输出）记入 git 提交信息或 QMS 归档记录。
 
 ### 5.9 `avior draft tests <pkg>`（V1.1，P1）
 
@@ -262,7 +267,7 @@ project:
 scope:
   lockfile: renv.lock
   intended_for_use: auto              # auto | explicit（仅用 include 清单）
-  include: []                         # 强制纳入
+  include: []                         # 强制纳入；可把默认豁免的 base/recommended 包拉回评估范围（FR-SCAN-4）
   exclude: [datasets]                 # 强制排除（需在报告中说明）
   custom_orgs: ["our-gh-org/*"]       # 判定自研包的来源规则
 policy:
@@ -288,9 +293,11 @@ report:
 
 ### 6.3 决策记录 `decisions/<pkg>.yml`
 
+本例特意选用 `survival`：一个 **`recommended` 包被 `scope.include` 强制纳入**后的决策记录。`recommended` 默认豁免（§5.2 范围规则），但它承担主分析统计量时，intended-use 重要性把它拉回范围——纳入后照常评分、决策与补测，与 `contributed` 包无异。
+
 ```yaml
 avior: 1
-package: survival
+package: survival                     # recommended 包，经 scope.include 强制纳入（§5.2 范围规则）
 version: "3.6-4"
 score_snapshot:
   score: 0.61
@@ -473,6 +480,7 @@ avior_engine(
 | --- | --- | --- |
 | v1.0 | 2026-07-08 | 初版开发基线 |
 | v1.1 | 2026-07-08 | 新增 §1.4 验证对象与产物边界；Q1–Q4 评审决策落档（AI 默认第三方模型、Apache-2.0、evidence 纳入 git、英文模板不进 V1） |
+| v1.2 | 2026-07-10 | 落实 PR 评审意见 #1/#2：§5.2 明确「recommended 默认豁免、可经 `scope.include` 强制纳入」范围规则（FR-SCAN-2/4、FR-ASSESS-1、§6.2、§6.3 联动）；§5.8 明确 manifest 仅保证内部一致、防篡改锚点在外部（git 提交 / QMS / 签名），新增 FR-VERIFY-3 输出 manifest 自身哈希 |
 
 ---
 

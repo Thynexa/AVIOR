@@ -5,7 +5,7 @@ project:
 scope:
   lockfile: renv.lock
   intended_for_use: auto        # 从 analysis/*.R 的 library()/:: 调用自动识别
-  include: []
+  include: [survival]           # recommended 包默认豁免；因承担主分析（coxph）经 intended-use 评审强制纳入（FR-SCAN-4）
   exclude: []
   custom_orgs: []               # 本例无自研包
 policy:

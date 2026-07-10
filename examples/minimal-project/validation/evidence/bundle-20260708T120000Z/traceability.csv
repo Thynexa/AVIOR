@@ -1,5 +1,5 @@
 package,version,classification,role,score,tier,decision,use_statement_ref,decision_file,reviewed_by,decision_date,test_files,test_status,notes
 jsonlite,1.8.8,contributed,direct,0.12,low,include,decisions/jsonlite.yml,decisions/jsonlite.yml,jin@example.com,2026-07-08,,,"低风险，仅元数据评估"
 lme4,1.1-35.1,contributed,direct,0.58,high,include_with_tests,decisions/lme4.yml,decisions/lme4.yml,jin@example.com,2026-07-08,tests/test-lme4-fit.R,pass,"高风险，针对用途补充定向测试"
-survival,3.5-7,recommended,direct,,,exempt,,,,,,,"Recommended 包，随 R 分发，低风险豁免"
+survival,3.5-7,recommended,direct,0.61,high,include_with_tests,decisions/survival.yml,decisions/survival.yml,jin@example.com,2026-07-08,tests/test-survival-coxph.R,pass,"recommended 默认豁免；因承担主分析经 scope.include 强制纳入，照常评分/决策/补测"
 minqa,1.2.6,contributed,transitive,,,version_managed,,,,,,,"间接依赖，仅版本管理，不深验"

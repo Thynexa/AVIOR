@@ -5,9 +5,9 @@ generated_by: { avior_version: "0.1.0-dev", engine: "riskmetric 0.2.4", r_versio
 project:
   name: minimal-example
   lockfile_sha256: "026afa0428661d0554435ce2e3b1cb6d8bf1e8be2edf1c10ca71a99fda5eeb5e"
-  policy_sha256: "56e1b2aee3aeb0d2d77aead355a0e1c38924c997985fbb73f40238ead451b080"
-integrity_check: passed
-counts: { packages_total: 4, assessed: 2, decisions_signed: 2, tests_run: 1 }
+  policy_sha256: "3eed1fc5ec4a98dc20a1f20ba73cb509d5e5f76a4991bbd81fc14394c0d98f44"   # 自 snapshot/avior.yml 计算（与工作区 avior.yml 逐字节一致）
+integrity_check: passed           # 生成时点执行的自证结果，不构成信任根；防篡改锚点在外部（PRD §5.8 信任边界）
+counts: { packages_total: 4, assessed: 3, decisions_signed: 3, tests_run: 2 }
 note: >
   ILLUSTRATIVE bundle assembled by hand for M0 format review.
   Risk scores are placeholder values; a real run produces them via riskmetric.

@@ -8,5 +8,5 @@
   ],
   "lockfile": { "path": "renv.lock", "sha256": "026afa0428661d0554435ce2e3b1cb6d8bf1e8be2edf1c10ca71a99fda5eeb5e" },
   "engine": { "id": "riskmetric", "version": "0.2.4" },
-  "package_count": { "total": 4, "in_scope_assessed": 2, "recommended_exempt": 1, "transitive": 1 }
+  "package_count": { "total": 4, "in_scope_assessed": 3, "recommended_exempt": 0, "force_included": 1, "transitive": 1 }
 }
