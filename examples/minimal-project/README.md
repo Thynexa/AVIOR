@@ -2,7 +2,7 @@
 
 这是一份**手工组装的最小样例证据包**（对应 PRD 的 M0 里程碑）。目的：在写任何代码之前，先确认「证据即文件 + git 留痕 + 哈希清单」这套证据形态**能否进入真实的 QA 签署流程**。
 
-一个 4 包的假想 R 项目，覆盖了所有关键情形：三分类、直接/间接调用、低/高风险、两种决策、定向测试、recommended 包被 `scope.include` 强制纳入。
+一个 5 包的假想 R 项目，覆盖了所有关键情形：三分类、直接/间接调用、低/中/高三档风险、三种决策路径、定向测试、recommended 包被 `scope.include` 强制纳入。
 
 > ⚠️ **示意值声明**：本示例在无 R 环境下手工组装，`scores.yml` 中的风险分为**示意值**，真实运行时由 riskmetric 引擎产出。其余结构（清单、决策、追溯矩阵、环境指纹、哈希清单）均为最终格式。
 
@@ -24,7 +24,7 @@
 
 ```text
 minimal-project/
-├── renv.lock                          # ① 输入：依赖锁（4 包，划定证据边界）
+├── renv.lock                          # ① 输入：依赖锁（5 包，划定证据边界）
 ├── analysis/main.R                    # ① 输入：源码（scan 从这里识别直接调用）
 └── validation/
     ├── avior.yml                      # ② 人工：策略即代码（权重/阈值/理由）
@@ -34,6 +34,7 @@ minimal-project/
     ├── decisions/
     │   ├── jsonlite.yml               # ② 人工：低风险 → include
     │   ├── lme4.yml                   # ② 人工：高风险 → include_with_tests
+    │   ├── mvtnorm.yml                # ② 人工：中风险 → include（用途声明必填）
     │   └── survival.yml               # ② 人工：recommended 强制纳入 → include_with_tests
     ├── tests/
     │   ├── test-lme4-fit.R            # ② 人工：针对用途的定向测试
@@ -47,14 +48,17 @@ minimal-project/
         └── MANIFEST.sha256           # 全文件哈希 → 内部一致性校验（防篡改锚点在外部，见下）
 ```
 
-## 这 4 个包演示了什么
+## 这 5 个包演示了什么
 
 | 包 | 分类 | 角色 | 风险 | 决策 | 演示点 |
 | --- | --- | --- | --- | --- | --- |
 | `jsonlite` | contributed | direct | low (0.12) | include | 低风险仅元数据评估 |
+| `mvtnorm` | contributed | direct | **medium (0.38)** | include | 中风险：`use_statement` 必填但不强制定向测试（`depth_by_risk.medium`） |
 | `lme4` | contributed | direct | high (0.58) | include_with_tests | 高风险必须配定向测试 |
 | `survival` | **recommended**（强制纳入） | direct | high (0.61) | include_with_tests | recommended 默认豁免**不是铁律**：因承担主分析（coxph）经 `scope.include` 拉回范围，照常评分/决策/补测 |
 | `minqa` | contributed | **transitive** | — | version_managed | intended-for-use 聚焦：间接依赖不深验 |
+
+三档深度要求（`depth_by_risk`）至此全部走到：low 仅元数据（jsonlite）、medium 用途声明必填（mvtnorm）、high 定向测试必配（lme4 / survival）。
 
 > recommended 包的**默认豁免路径**（不评分、不深验）本例未单独演示——规则见 PRD §5.2「范围规则」：豁免是默认值，intended-use 重要性可经 `scope.include` 覆盖，覆盖行为记录进 `inventory.yml`（`overridden: true`）。
 

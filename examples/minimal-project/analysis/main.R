@@ -13,4 +13,8 @@ fit_surv <- function(data) {
 export_results <- function(obj, path) {
   jsonlite::write_json(obj, path)   # 直接调用（命名空间形式）
 }
+
+adjust_multiplicity <- function(corr) {
+  mvtnorm::qmvnorm(0.975, corr = corr)$quantile   # 直接调用：多重比较的多元正态临界值
+}
 # 注意：minqa 未被直接 library()/:: 调用 —— 它是 lme4 拉入的间接依赖

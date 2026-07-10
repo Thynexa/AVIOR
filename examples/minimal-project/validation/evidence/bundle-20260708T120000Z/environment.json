@@ -6,7 +6,7 @@
   "repositories": [
     { "name": "CRAN", "url": "https://packagemanager.posit.co/cran/2024-01-15", "snapshot": "2024-01-15" }
   ],
-  "lockfile": { "path": "renv.lock", "sha256": "026afa0428661d0554435ce2e3b1cb6d8bf1e8be2edf1c10ca71a99fda5eeb5e" },
+  "lockfile": { "path": "renv.lock", "sha256": "4e7ad2a64bed09772cb5fb9f4ecf9f754c9d2348bf2bd40a8aaeef1055f3a8d2" },
   "engine": { "id": "riskmetric", "version": "0.2.4" },
-  "package_count": { "total": 4, "in_scope_assessed": 3, "recommended_exempt": 0, "force_included": 1, "transitive": 1 }
+  "package_count": { "total": 5, "in_scope_assessed": 4, "recommended_exempt": 0, "force_included": 1, "transitive": 1 }
 }
