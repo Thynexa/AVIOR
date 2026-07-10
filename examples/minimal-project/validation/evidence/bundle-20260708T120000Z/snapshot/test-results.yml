@@ -1,0 +1,24 @@
+avior: 1
+generated_by: "avior test"
+# 示意结果（ILLUSTRATIVE）：真实运行由 testthat 产出。
+testthat_version: "3.2.1"
+run_at: "2026-07-08T11:50:00Z"
+results:
+  - file: tests/test-lme4-fit.R
+    package: lme4
+    package_version: "1.1-35.1"     # 与被测包版本绑定；不符即视为过期
+    tests: 2
+    passed: 2
+    failed: 0
+    skipped: 0
+    duration_s: 3.4
+    coverage_ref: "参考值，不作门禁阈值"
+  - file: tests/test-survival-coxph.R
+    package: survival
+    package_version: "3.5-7"        # 与被测包版本绑定；不符即视为过期
+    tests: 2
+    passed: 2
+    failed: 0
+    skipped: 0
+    duration_s: 1.8
+    coverage_ref: "参考值，不作门禁阈值"

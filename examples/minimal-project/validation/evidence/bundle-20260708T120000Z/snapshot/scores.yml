@@ -1,0 +1,28 @@
+avior: 1
+generated_by: "avior assess"
+# ============================================================
+# 注意：以下 score / metric 均为示意值（ILLUSTRATIVE）。
+# 真实运行时由 riskmetric 引擎抓取包元数据后产出。
+# 本示例在无 R 环境下手工组装，用于 M0 格式评审。
+# ============================================================
+engine: { id: riskmetric, version: "0.2.4" }
+scored_at: "2026-07-08T11:40:00Z"
+packages:
+  jsonlite:
+    version: "1.8.8"
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.95, covr_coverage: 0.98, bugs_status: 0.90 }
+    score: 0.12
+    tier: low
+  lme4:
+    version: "1.1-35.1"
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.88, covr_coverage: 0.35, bugs_status: 0.55 }
+    score: 0.58
+    tier: high
+    note: "高风险主因：复杂统计计算 + 覆盖率信号偏低；非质量缺陷，需针对用途补测"
+  survival:
+    version: "3.5-7"
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.90, covr_coverage: 0.28, bugs_status: 0.50 }
+    score: 0.61
+    tier: high
+    note: "recommended 包，经 scope.include 强制纳入后照常评分；高风险源于社区指标（覆盖率信号）而非质量缺陷"
+na_metrics: []
