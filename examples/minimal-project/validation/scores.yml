@@ -7,7 +7,7 @@ generated_by: "avior assess"
 # ============================================================
 engine: { id: riskmetric, version: "0.2.4" }
 scored_at: "2026-07-08T11:40:00Z"
-packages:
+packages:                       # 包序：包名字母序（FR-X-7 确定性排序）
   jsonlite:
     version: "1.8.8"
     metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.95, covr_coverage: 0.98, bugs_status: 0.90 }
@@ -19,16 +19,16 @@ packages:
     score: 0.58
     tier: high
     note: "高风险主因：复杂统计计算 + 覆盖率信号偏低；非质量缺陷，需针对用途补测"
-  survival:
-    version: "3.5-7"
-    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.90, covr_coverage: 0.28, bugs_status: 0.50 }
-    score: 0.61
-    tier: high
-    note: "recommended 包，经 scope.include 强制纳入后照常评分；高风险源于社区指标（覆盖率信号）而非质量缺陷"
   mvtnorm:
     version: "1.2-4"
     metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.93, covr_coverage: 0.55, bugs_status: 0.75 }
     score: 0.38
     tier: medium
     note: "medium 档：depth_by_risk.medium=use_statement_required，须填用途声明但不强制定向测试"
+  survival:
+    version: "3.5-7"
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.90, covr_coverage: 0.28, bugs_status: 0.50 }
+    score: 0.61
+    tier: high
+    note: "recommended 包，经 scope.include 强制纳入后照常评分；高风险源于社区指标（覆盖率信号）而非质量缺陷"
 na_metrics: []
