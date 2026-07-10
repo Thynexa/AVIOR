@@ -128,7 +128,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | FR-X-4 | 评估引擎经适配层接入（见 §7.2）；V1 实现 riskmetric 适配器；引擎 id 与版本记入一切评分产物 | P0 |
 | FR-X-5 | 评分缓存：以「包名+版本+引擎 id+引擎版本+指标集」为键，缓存于项目 `validation/.cache/`（gitignore）；重跑只算变更项 | P0 |
 | FR-X-6 | 配置与产物 schema 带版本号（`avior: 1`）；schema 演进保持向后可读——旧证据包永不失效 | P0 |
-| FR-X-7 | **确定性排序**：一切生成物中的包序为**包名字母序**（C locale 字节序，大小写敏感），覆盖 `inventory.yml`、`scores.yml`、`traceability.csv` 与报告逐包明细；`test-results.yml` 按测试文件路径排序；`MANIFEST.sha256` 按相对路径排序（§6.4）。这是「重复执行输出字节一致」（各命令 AC）的前提 | P0 |
+| FR-X-7 | **确定性排序**：一切生成物中的包序为**包名字母序**（C locale 字节序，大小写敏感——大写整体排在小写之前，如 `Matrix` 排在 `jsonlite` **之前**（`0x4D` < `0x6A`）；勿用大小写不敏感或 locale-aware 排序），覆盖 `inventory.yml`、`scores.yml`、`traceability.csv` 与报告逐包明细；`test-results.yml` 按测试文件路径排序；`MANIFEST.sha256` 按相对路径排序（§6.4）。这是「重复执行输出字节一致」（各命令 AC）的前提 | P0 |
 
 ### 5.1 `avior init` —— 脚手架
 
