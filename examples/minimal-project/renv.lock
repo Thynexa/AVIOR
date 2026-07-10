@@ -23,6 +23,10 @@
     "minqa": {
       "Package": "minqa", "Version": "1.2.6", "Source": "Repository",
       "Repository": "CRAN", "Hash": "77f0e1d2c3b4a5968778695a4b3c2d1e", "Requirements": ["Rcpp"]
+    },
+    "mvtnorm": {
+      "Package": "mvtnorm", "Version": "1.2-4", "Source": "Repository",
+      "Repository": "CRAN", "Hash": "9c1d2e3f4a5b60718293a4b5c6d7e8a0", "Requirements": []
     }
   }
 }

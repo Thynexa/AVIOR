@@ -1,0 +1,16 @@
+avior: 1
+package: mvtnorm                  # medium 档演示：use_statement 必填，定向测试不强制
+version: "1.2-4"
+score_snapshot: { score: 0.38, tier: medium, scored_at: "2026-07-08T11:40:00Z", engine: "riskmetric 0.2.4" }
+use_statement: >
+  用于多重比较的多元正态临界值计算（qmvnorm，adjust_multiplicity，
+  analysis/main.R:17-19），服务于次要终点的多重性调整。
+decision: include                 # medium → use_statement_required：有用途声明即可纳入
+rationale: >
+  中风险档按 depth_by_risk.medium 要求填写用途声明；数值积分算法成熟、
+  社区指标良好，用途为辅助性临界值计算（非主分析统计量），不强制定向测试。
+tests: []
+reviewed_by: "jin@example.com"
+date: "2026-07-08"
+ai_assisted: false
+confirmed_by: null

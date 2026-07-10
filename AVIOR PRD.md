@@ -341,6 +341,8 @@ bundle-20260715T093000Z/
 
 ——每行即一条完整证据链；QA 与审计员优先读这个文件。
 
+两列引用的分工：`decision_file` 指向决策记录**文件**（`decisions/<pkg>.yml`）；`use_statement_ref` 指向其中的**字段锚点**（`decisions/<pkg>.yml#use_statement`），供审计员直接定位用途声明，无决策文件的行（如 transitive）两列均留空。
+
 ---
 
 ## 7. 架构与技术选型
@@ -425,7 +427,7 @@ avior_engine(
 
 1. **效率**：真实项目（约 50 个第三方包）从 `renv.lock` 到可签署证据包 ≤ 1 个工作日（对照人工路径：以周计）。
 2. **合规有效性**：至少一份证据包通过一次真实的内部 QA 审查，审查意见回灌报告模板。
-3. **可重现**：同输入重跑，产出与 manifest 一致（NFR-1 口径）。
+3. **可重现**：同输入重跑，**数据产物**（追溯矩阵、环境指纹、各快照副本）字节级一致且与 manifest 相符；报告文件内嵌时间戳，其确定性重建需启用 `SOURCE_DATE_EPOCH`（FR-BUNDLE-8；与 NFR-1 同口径）。
 4. **持续性**：`avior check` 在 design partner CI 稳定运行 ≥ 4 周，依赖漂移零漏报。
 5. **北极星指标**：通过完整性校验的证据包生成数（工具可观测；「经签署归档数」发生在客户 QMS，工具不可见，不作为指标）。
 
@@ -481,6 +483,7 @@ avior_engine(
 | v1.0 | 2026-07-08 | 初版开发基线 |
 | v1.1 | 2026-07-08 | 新增 §1.4 验证对象与产物边界；Q1–Q4 评审决策落档（AI 默认第三方模型、Apache-2.0、evidence 纳入 git、英文模板不进 V1） |
 | v1.2 | 2026-07-10 | 落实 PR 评审意见 #1/#2：§5.2 明确「recommended 默认豁免、可经 `scope.include` 强制纳入」范围规则（FR-SCAN-2/4、FR-ASSESS-1、§6.2、§6.3 联动）；§5.8 明确 manifest 仅保证内部一致、防篡改锚点在外部（git 提交 / QMS / 签名），新增 FR-VERIFY-3 输出 manifest 自身哈希 |
+| v1.3 | 2026-07-10 | 落实评审后续项（issues #7/#8）：§10-#3 显式限定字节级可复现仅覆盖数据产物、报告需 `SOURCE_DATE_EPOCH`（与 NFR-1 对齐）；§6.5 明确 `use_statement_ref` 为字段锚点（`decisions/<pkg>.yml#use_statement`），与 `decision_file` 分工 |
 
 ---
 
