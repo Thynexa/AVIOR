@@ -6,7 +6,7 @@
 | 产品名 | **AVIOR** — Automated Validation and Inspection for Operational R-packages |
 | 命名来源 | 船底座 ε（Avior），神话中阿尔戈号的龙骨 —— 验证体系的龙骨 |
 | CLI / R 包名 | `avior` |
-| 文档版本 | v1.1（开发基线；本文件取代《ValiR PRD.md》v0.1，后者保留作历史参考） |
+| 文档版本 | v1.1（开发基线；本文件取代《ValiR PRD》v0.1（`docs/ValiR-PRD.md`），后者保留作历史参考） |
 | 文档状态 | 定稿。后续变更通过 PR 修订本文件，重大范围变更须先对照 §2 设计公理 |
 | 编制日期 | 2026-07-08 |
 | 依据 | 《R 包验证策略对比分析与实施方案》《评审意见与聚焦规划》 |
@@ -484,6 +484,7 @@ avior_engine(
 | v1.1 | 2026-07-08 | 新增 §1.4 验证对象与产物边界；Q1–Q4 评审决策落档（AI 默认第三方模型、Apache-2.0、evidence 纳入 git、英文模板不进 V1） |
 | v1.2 | 2026-07-10 | 落实 PR 评审意见 #1/#2：§5.2 明确「recommended 默认豁免、可经 `scope.include` 强制纳入」范围规则（FR-SCAN-2/4、FR-ASSESS-1、§6.2、§6.3 联动）；§5.8 明确 manifest 仅保证内部一致、防篡改锚点在外部（git 提交 / QMS / 签名），新增 FR-VERIFY-3 输出 manifest 自身哈希 |
 | v1.3 | 2026-07-10 | 落实评审后续项（issues #7/#8）：§10-#3 显式限定字节级可复现仅覆盖数据产物、报告需 `SOURCE_DATE_EPOCH`（与 NFR-1 对齐）；§6.5 明确 `use_statement_ref` 为字段锚点（`decisions/<pkg>.yml#use_statement`），与 `decision_file` 分工 |
+| v1.4 | 2026-07-10 | 落实 issue #11（NFR-6 可移植性）：根目录文档迁入 `docs/` 并 ASCII 化文件名（本文件原名 `AVIOR PRD.md`），内容无变更；索引见 `docs/README.md` |
 
 ---
 
