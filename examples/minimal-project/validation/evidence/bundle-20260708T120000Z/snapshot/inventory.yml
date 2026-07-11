@@ -2,11 +2,11 @@ avior: 1
 generated_by: "avior scan"
 lockfile:
   path: renv.lock
-  sha256: 4e7ad2a64bed09772cb5fb9f4ecf9f754c9d2348bf2bd40a8aaeef1055f3a8d2          # 由本次 scan 记录，作为漂移基准
-packages:
+  sha256: ffb8b2add0b30e8625fe1632a5225319ad5f553875bde85200f8f2acb3777b2f          # 由本次 scan 记录，作为漂移基准
+packages:                       # 包序：包名字母序（FR-X-7 确定性排序）
   - { name: jsonlite, version: "1.8.8",    classification: contributed, role: direct,     in_scope: true,  source: "analysis/main.R:14" }
   - { name: lme4,     version: "1.1-35.1", classification: contributed, role: direct,     in_scope: true,  source: "analysis/main.R:2" }
-  - { name: survival, version: "3.5-7",    classification: recommended, role: direct,     in_scope: true,  source: "analysis/main.R:3", overridden: true, override_source: "avior.yml scope.include", note: "recommended 包默认豁免；因承担主分析（coxph）经 scope.include 强制纳入" }
-  - { name: mvtnorm,  version: "1.2-4",    classification: contributed, role: direct,     in_scope: true,  source: "analysis/main.R:18" }
   - { name: minqa,    version: "1.2.6",    classification: contributed, role: transitive, in_scope: false, source: "lme4 Requirements", note: "间接依赖，仅版本管理" }
+  - { name: mvtnorm,  version: "1.2-4",    classification: contributed, role: direct,     in_scope: true,  source: "analysis/main.R:18" }
+  - { name: survival, version: "3.5-7",    classification: recommended, role: direct,     in_scope: true,  source: "analysis/main.R:3", overridden: true, override_source: "avior.yml scope.include", note: "recommended 包默认豁免；因承担主分析（coxph）经 scope.include 强制纳入" }
 summary: { total: 5, direct: 4, transitive: 1, in_scope_assessed: 4, recommended_exempt: 0, force_included: 1 }

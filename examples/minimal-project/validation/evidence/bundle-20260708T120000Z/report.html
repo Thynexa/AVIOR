@@ -51,9 +51,9 @@
   <tr><th>包</th><th>版本</th><th>分类</th><th>角色</th><th>处理</th></tr>
   <tr><td>jsonlite</td><td>1.8.8</td><td>contributed</td><td>direct</td><td>纳入评估</td></tr>
   <tr><td>lme4</td><td>1.1-35.1</td><td>contributed</td><td>direct</td><td>纳入评估</td></tr>
-  <tr><td>survival</td><td>3.5-7</td><td class="exempt">recommended</td><td>direct</td><td>默认豁免；因承担主分析经 <code>scope.include</code> 强制纳入评估（覆盖行为已记录于清单）</td></tr>
-  <tr><td>mvtnorm</td><td>1.2-4</td><td>contributed</td><td>direct</td><td>纳入评估</td></tr>
   <tr><td>minqa</td><td>1.2.6</td><td>contributed</td><td class="exempt">transitive</td><td>间接依赖，仅版本管理</td></tr>
+  <tr><td>mvtnorm</td><td>1.2-4</td><td>contributed</td><td>direct</td><td>纳入评估</td></tr>
+  <tr><td>survival</td><td>3.5-7</td><td class="exempt">recommended</td><td>direct</td><td>默认豁免；因承担主分析经 <code>scope.include</code> 强制纳入评估（覆盖行为已记录于清单）</td></tr>
 </table>
 
 <h2>3. 风险评分与阈值</h2>
@@ -62,8 +62,8 @@
   <tr><th>包</th><th>风险分</th><th>档位</th><th>说明</th></tr>
   <tr><td>jsonlite</td><td>0.12</td><td class="low">low</td><td>成熟稳定，元数据信号良好</td></tr>
   <tr><td>lme4</td><td>0.58</td><td class="high">high</td><td>复杂统计计算 + 覆盖率信号偏低；非质量缺陷</td></tr>
-  <tr><td>survival</td><td>0.61</td><td class="high">high</td><td>recommended 强制纳入后照常评分；高风险源于社区指标而非质量缺陷</td></tr>
   <tr><td>mvtnorm</td><td>0.38</td><td class="medium">medium</td><td>中风险：用途声明必填（depth_by_risk.medium），定向测试不强制</td></tr>
+  <tr><td>survival</td><td>0.61</td><td class="high">high</td><td>recommended 强制纳入后照常评分；高风险源于社区指标而非质量缺陷</td></tr>
 </table>
 
 <h2>4. 决策汇总</h2>
@@ -71,8 +71,8 @@
   <tr><th>包</th><th>决策</th><th>用途声明</th><th>理由</th><th>评审人</th></tr>
   <tr><td>jsonlite</td><td>include</td><td>结果序列化为 JSON 落盘</td><td>低风险，用途简单无数值计算风险</td><td>jin@example.com</td></tr>
   <tr><td>lme4</td><td>include_with_tests</td><td>lmer 拟合混合效应模型（主要疗效分析）</td><td>高风险，针对用途补充金标准比对测试后纳入</td><td>jin@example.com</td></tr>
-  <tr><td>survival</td><td>include_with_tests</td><td>coxph 拟合主分析组间风险比</td><td>recommended 默认豁免，按四准则第一条（用途）强制纳入；补充金标准比对测试</td><td>jin@example.com</td></tr>
   <tr><td>mvtnorm</td><td>include</td><td>qmvnorm 计算多重比较临界值（次要终点多重性调整）</td><td>medium 档凭用途声明纳入；辅助性计算，不强制定向测试</td><td>jin@example.com</td></tr>
+  <tr><td>survival</td><td>include_with_tests</td><td>coxph 拟合主分析组间风险比</td><td>recommended 默认豁免，按四准则第一条（用途）强制纳入；补充金标准比对测试</td><td>jin@example.com</td></tr>
 </table>
 
 <h2>5. 测试证据</h2>

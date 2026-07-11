@@ -128,6 +128,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | FR-X-4 | 评估引擎经适配层接入（见 §7.2）；V1 实现 riskmetric 适配器；引擎 id 与版本记入一切评分产物 | P0 |
 | FR-X-5 | 评分缓存：以「包名+版本+引擎 id+引擎版本+指标集」为键，缓存于项目 `validation/.cache/`（gitignore）；重跑只算变更项 | P0 |
 | FR-X-6 | 配置与产物 schema 带版本号（`avior: 1`）；schema 演进保持向后可读——旧证据包永不失效 | P0 |
+| FR-X-7 | **确定性排序**：一切生成物中的包序为**包名字母序**（C locale 字节序，大小写敏感——大写整体排在小写之前，如 `Matrix` 排在 `jsonlite` **之前**（`0x4D` < `0x6A`）；勿用大小写不敏感或 locale-aware 排序），覆盖 `inventory.yml`、`scores.yml`、`traceability.csv` 与报告逐包明细；`test-results.yml` 按测试文件路径排序；`MANIFEST.sha256` 按相对路径排序（§6.4）。这是「重复执行输出字节一致」（各命令 AC）的前提 | P0 |
 
 ### 5.1 `avior init` —— 脚手架
 
@@ -341,7 +342,7 @@ bundle-20260715T093000Z/
 
 ——每行即一条完整证据链；QA 与审计员优先读这个文件。
 
-两列引用的分工：`decision_file` 指向决策记录**文件**（`decisions/<pkg>.yml`）；`use_statement_ref` 指向其中的**字段锚点**（`decisions/<pkg>.yml#use_statement`），供审计员直接定位用途声明，无决策文件的行（如 transitive）两列均留空。
+两列引用的分工：`decision_file` 指向决策记录**文件**（`decisions/<pkg>.yml`）；`use_statement_ref` 指向其中的**字段锚点**（`decisions/<pkg>.yml#use_statement`），供审计员直接定位用途声明，无决策文件的行（如 transitive）两列均留空。行序为包名字母序（FR-X-7）。
 
 ---
 
@@ -485,6 +486,7 @@ avior_engine(
 | v1.2 | 2026-07-10 | 落实 PR 评审意见 #1/#2：§5.2 明确「recommended 默认豁免、可经 `scope.include` 强制纳入」范围规则（FR-SCAN-2/4、FR-ASSESS-1、§6.2、§6.3 联动）；§5.8 明确 manifest 仅保证内部一致、防篡改锚点在外部（git 提交 / QMS / 签名），新增 FR-VERIFY-3 输出 manifest 自身哈希 |
 | v1.3 | 2026-07-10 | 落实评审后续项（issues #7/#8）：§10-#3 显式限定字节级可复现仅覆盖数据产物、报告需 `SOURCE_DATE_EPOCH`（与 NFR-1 对齐）；§6.5 明确 `use_statement_ref` 为字段锚点（`decisions/<pkg>.yml#use_statement`），与 `decision_file` 分工 |
 | v1.4 | 2026-07-10 | 落实 issue #11（NFR-6 可移植性）：根目录文档迁入 `docs/` 并 ASCII 化文件名（本文件原名 `AVIOR PRD.md`），内容无变更；索引见 `docs/README.md` |
+| v1.5 | 2026-07-10 | 落实 issue #15：新增 FR-X-7 确定性排序——生成物包序为包名字母序（C locale），`test-results.yml` 按测试文件路径、manifest 按相对路径；示例文件同步整理 |
 
 ---
 
