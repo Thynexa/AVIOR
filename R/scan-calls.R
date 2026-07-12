@@ -31,15 +31,42 @@ scan_file_calls <- function(path, rel) {
     call_id <- pd$parent[pd$id == fn_expr]
     kids <- pd[pd$parent == call_id, , drop = FALSE]
     kids <- kids[order(kids$line1, kids$col1), , drop = FALSE]
-    arg_exprs <- kids[kids$token == "expr" & kids$id != fn_expr, , drop = FALSE]
-    if (nrow(arg_exprs) == 0) next
-    term <- pd[pd$parent == arg_exprs$id[1], , drop = FALSE]
+
+    # Separate positional from named arguments: an expr immediately after a
+    # SYMBOL_SUB/EQ_SUB pair belongs to that name. The package may arrive
+    # positionally (library(x)) or as `package =` (requireNamespace(quietly
+    # = TRUE, package = "x")); `library(help = x)` attaches nothing.
+    positional <- integer(0)
+    named <- character(0)
+    named_ids <- integer(0)
+    pending <- NA_character_
+    for (k in seq_len(nrow(kids))) {
+      tokk <- kids$token[k]
+      if (tokk == "SYMBOL_SUB") {
+        pending <- kids$text[k]
+      } else if (tokk == "expr" && kids$id[k] != fn_expr) {
+        if (is.na(pending)) {
+          positional <- c(positional, kids$id[k])
+        } else {
+          named <- c(named, pending)
+          named_ids <- c(named_ids, kids$id[k])
+          pending <- NA_character_
+        }
+      }
+    }
+    target <- if (length(positional) > 0) {
+      positional[1]
+    } else if ("package" %in% named) {
+      named_ids[match("package", named)]
+    } else {
+      NA_integer_
+    }
+    if (is.na(target)) next
+
+    term <- pd[pd$parent == target, , drop = FALSE]
     tok <- term[term$token %in% c("STR_CONST", "SYMBOL"), , drop = FALSE]
     if (nrow(tok) != 1) next
-    if (tok$token == "SYMBOL" &&
-        any(kids$token == "SYMBOL_SUB" & kids$text == "character.only")) {
-      next
-    }
+    if (tok$token == "SYMBOL" && "character.only" %in% named) next
     pkg <- tok$text
     if (tok$token == "STR_CONST") pkg <- gsub("^['\"]|['\"]$", "", pkg)
     if (!nzchar(pkg)) next

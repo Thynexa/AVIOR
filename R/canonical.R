@@ -10,7 +10,10 @@
 avior_format_num <- function(x) {
   vapply(as.numeric(x), function(v) {
     if (is.na(v)) return(NA_character_)
-    s <- format(round(v, 4), scientific = FALSE, trim = TRUE, drop0trailing = TRUE)
+    # digits = 15: format()'s default of 7 significant digits would corrupt
+    # values with a large integer part (123456.7891 -> "123456.8")
+    s <- format(round(v, 4), scientific = FALSE, trim = TRUE,
+                drop0trailing = TRUE, digits = 15)
     if (!grepl(".", s, fixed = TRUE)) s <- paste0(s, ".0")
     s
   }, character(1), USE.NAMES = FALSE)
@@ -68,7 +71,15 @@ yaml_flow <- function(x) structure(x, avior_yaml_flow = TRUE)
 
 yaml_is_flow <- function(x) isTRUE(attr(x, "avior_yaml_flow", exact = TRUE))
 
-yaml_reserved <- c("true", "false", "null", "yes", "no", "on", "off")
+# Mark a vector so it is always emitted as an inline sequence (`[a]`), even
+# at length 1 where R cannot distinguish a scalar from a 1-element vector
+# (needed for e.g. the `tests:` list in decision records).
+yaml_seq <- function(x) structure(x, avior_yaml_seq = TRUE)
+
+yaml_is_seq <- function(x) isTRUE(attr(x, "avior_yaml_seq", exact = TRUE))
+
+# YAML 1.1 booleans, including the single-letter y/n forms.
+yaml_reserved <- c("true", "false", "null", "yes", "no", "on", "off", "y", "n")
 
 yaml_string <- function(s) {
   s <- to_utf8(s)
@@ -77,6 +88,9 @@ yaml_string <- function(s) {
   }
   s <- gsub("\\", "\\\\", s, fixed = TRUE)
   s <- gsub('"', '\\"', s, fixed = TRUE)
+  s <- gsub("\n", "\\n", s, fixed = TRUE)
+  s <- gsub("\r", "\\r", s, fixed = TRUE)
+  s <- gsub("\t", "\\t", s, fixed = TRUE)
   paste0('"', s, '"')
 }
 
@@ -119,6 +133,8 @@ yaml_emit <- function(x, indent = 0) {
         out <- c(out, paste0(pad, key, ": null"))
       } else if (yaml_is_flow(v)) {
         out <- c(out, paste0(pad, key, ": ", yaml_flow_map(v)))
+      } else if (yaml_is_seq(v) && !is.list(v)) {
+        out <- c(out, paste0(pad, key, ": ", yaml_inline_seq(v)))
       } else if (is.list(v)) {
         if (length(v) == 0) {
           out <- c(out, paste0(pad, key, ":",
@@ -162,9 +178,18 @@ write_yaml_canonical <- function(x, path, header = NULL) {
 
 # -- JSON writer --------------------------------------------------------------
 
+# Round doubles to 4 decimals up front: jsonlite keeps very small magnitudes
+# in scientific notation regardless of the digits argument (1e-10 -> "1e-10"),
+# which FR-X-8 forbids; after round(v, 4) such values are exactly 0.
+json_canonicalize <- function(x) {
+  if (is.list(x)) return(lapply(x, json_canonicalize))
+  if (is.double(x)) return(round(x, 4))
+  x
+}
+
 write_json_canonical <- function(x, path) {
-  txt <- jsonlite::toJSON(x, pretty = 2, auto_unbox = TRUE,
-                          null = "null", na = "null", digits = NA)
+  txt <- jsonlite::toJSON(json_canonicalize(x), pretty = 2, auto_unbox = TRUE,
+                          null = "null", na = "null", digits = I(4))
   write_lines_lf(as.character(txt), path)
 }
 

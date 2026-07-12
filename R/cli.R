@@ -5,8 +5,13 @@
 parse_argv <- function(argv) {
   fmt <- "text"
   i <- which(argv == "--format")
-  if (length(i) == 1 && i < length(argv)) {
+  if (length(i) > 1) avior_abort("--format given more than once")
+  if (length(i) == 1) {
+    if (i == length(argv)) avior_abort("--format requires a value (text|json)")
     fmt <- argv[i + 1]
+    if (!fmt %in% c("text", "json")) {
+      avior_abort(paste0("unsupported --format `", fmt, "` (expected text|json)"))
+    }
     argv <- argv[-c(i, i + 1)]
   }
   list(command = if (length(argv)) argv[1] else NA_character_,
@@ -18,31 +23,46 @@ emit_json <- function(x) {
   cat(jsonlite::toJSON(x, auto_unbox = TRUE, null = "null", pretty = 2), "\n", sep = "")
 }
 
-main <- function(argv = commandArgs(trailingOnly = TRUE)) {
-  opts <- parse_argv(argv)
-
-  run <- function() {
-    if (is.na(opts$command)) {
-      avior_abort("no command given (expected: init|scan)")
-    }
-    switch(
-      opts$command,
-      init = {
-        res <- avior_init(".")
-        list(command = "init", status = "ok",
-             created = res$created, skipped = res$skipped)
-      },
-      scan = {
-        inv <- avior_scan(".")
-        list(command = "scan", status = "ok",
-             lockfile = inv$lockfile,
-             summary = unclass(inv$summary))
-      },
-      avior_abort(paste0("unknown command: ", opts$command, " (expected: init|scan)"))
-    )
+run_command <- function(opts) {
+  if (is.na(opts$command)) {
+    avior_abort("no command given (expected: init|scan)")
   }
+  switch(
+    opts$command,
+    init = {
+      res <- avior_init(".")
+      list(command = "init", status = "ok",
+           created = res$created, skipped = res$skipped)
+    },
+    scan = {
+      inv <- avior_scan(".")
+      list(command = "scan", status = "ok",
+           lockfile = inv$lockfile,
+           summary = unclass(inv$summary))
+    },
+    avior_abort(paste0("unknown command: ", opts$command, " (expected: init|scan)"))
+  )
+}
 
-  result <- tryCatch(run(), avior_error = function(e) e)
+main <- function(argv = commandArgs(trailingOnly = TRUE)) {
+  opts <- list(command = if (length(argv)) argv[1] else NA_character_,
+               format = if ("json" %in% argv) "json" else "text")
+
+  # Every failure — avior_error or unexpected — must map to exit 2 (FR-X-3):
+  # a CI gate reading exit 1 would misread a crash as "validation failed".
+  result <- tryCatch(
+    {
+      opts <- parse_argv(argv)
+      run_command(opts)
+    },
+    avior_error = function(e) e,
+    error = function(e) {
+      structure(class = c("avior_unexpected_error", "avior_error",
+                          "error", "condition"),
+                list(message = paste0("unexpected error: ", conditionMessage(e)),
+                     call = NULL))
+    }
+  )
 
   if (inherits(result, "avior_error")) {
     if (identical(opts$format, "json")) {

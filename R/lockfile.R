@@ -30,7 +30,7 @@ read_renv_lock <- function(path) {
     error = function(e) avior_abort(paste0("cannot parse ", path, ": ", conditionMessage(e)))
   )
   pkgs <- lock$Packages
-  if (is.null(pkgs) || length(pkgs) == 0) {
+  if (is.null(pkgs)) {
     avior_abort(paste0(path, ": no Packages section (is this a renv.lock?)"))
   }
   df <- data.frame(
@@ -38,6 +38,7 @@ read_renv_lock <- function(path) {
     version = vapply(pkgs, function(p) p$Version %||% "", character(1)),
     source = vapply(pkgs, function(p) p$Source %||% "", character(1)),
     repository = vapply(pkgs, function(p) p$Repository %||% "", character(1)),
+    priority = vapply(pkgs, function(p) p$Priority %||% "", character(1)),
     remote_org = vapply(pkgs, function(p) p$RemoteUsername %||% "", character(1)),
     remote_repo = vapply(pkgs, function(p) p$RemoteRepo %||% "", character(1)),
     stringsAsFactors = FALSE
@@ -71,14 +72,23 @@ glob_match <- function(globs, value) {
 classify_packages <- function(lock, config) {
   org_globs <- config$scope$custom_orgs
   lock$classification <- vapply(seq_len(nrow(lock)), function(i) {
-    name <- lock$name[i]
-    if (name %in% BASE_PACKAGES) return("base")
-    if (name %in% RECOMMENDED_PACKAGES) return("recommended")
-    remote <- paste0(lock$remote_org[i], "/", lock$remote_repo[i])
+    # custom detection first: a GitHub fork of `survival` is the org's own
+    # build, not the R-distribution package — source beats name (FR-SCAN-2)
+    org <- lock$remote_org[i]
+    repo <- lock$remote_repo[i]
+    remote <- if (nzchar(org) && nzchar(repo)) paste0(org, "/", repo) else ""
     if (lock$source[i] %in% NON_REPOSITORY_SOURCES ||
         glob_match(org_globs, remote) ||
-        glob_match(org_globs, lock$remote_org[i])) {
+        glob_match(org_globs, org)) {
       return("custom")
+    }
+    # then the R-distribution priority field, falling back to vendored sets
+    name <- lock$name[i]
+    if (identical(lock$priority[i], "base") || name %in% BASE_PACKAGES) {
+      return("base")
+    }
+    if (identical(lock$priority[i], "recommended") || name %in% RECOMMENDED_PACKAGES) {
+      return("recommended")
     }
     "contributed"
   }, character(1))

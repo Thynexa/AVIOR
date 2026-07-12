@@ -9,12 +9,24 @@ avior_scan <- function(root = ".") {
   lock <- classify_packages(read_renv_lock(lock_path), cfg)
 
   direct <- if (identical(cfg$scope$intended_for_use, "explicit")) {
+    n <- length(cfg$scope$include)
     data.frame(package = cfg$scope$include,
-               file = "avior.yml scope.include", line = NA_integer_,
+               file = rep("avior.yml scope.include", n),
+               line = rep(NA_integer_, n),
                stringsAsFactors = FALSE)
   } else {
     scan_direct_calls(root, exclude_dirs = c(cfg$project$validation_dir,
                                              "renv", "packrat"))
+  }
+
+  # A human override that silently no-ops (typo, package since removed from
+  # the lockfile) is a trust defect for an audit tool (FR-SCAN-4).
+  unknown <- setdiff(c(cfg$scope$include, cfg$scope$exclude), lock$name)
+  if (length(unknown) > 0) {
+    warning(paste0("avior scan: scope.include/exclude reference packages ",
+                   "not present in the lockfile: ",
+                   paste(sort_c(unknown), collapse = ", ")),
+            call. = FALSE)
   }
 
   entries <- lapply(seq_len(nrow(lock)), function(i) {

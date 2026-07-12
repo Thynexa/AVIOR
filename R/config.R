@@ -31,13 +31,22 @@ config_defaults <- function() {
 }
 
 # Merge user config over defaults, one level of nesting at a time.
-merge_config <- function(defaults, user) {
+# A NULL user value (an empty YAML section, e.g. `scope:` with everything
+# commented out) keeps the defaults; a scalar where a mapping is expected
+# is a schema error, not a silent overwrite.
+merge_config <- function(defaults, user, path = character(0)) {
   for (key in names(user)) {
-    if (is.list(defaults[[key]]) && is.list(user[[key]]) &&
-        !is.null(names(defaults[[key]]))) {
-      defaults[[key]] <- merge_config(defaults[[key]], user[[key]])
+    uv <- user[[key]]
+    if (is.null(uv)) next
+    dv <- defaults[[key]]
+    if (is.list(dv) && !is.null(names(dv)) && any(nzchar(names(dv)))) {
+      if (!is.list(uv)) {
+        config_abort(paste0("avior.yml: `", paste(c(path, key), collapse = "."),
+                            "` must be a mapping, got a scalar"))
+      }
+      defaults[[key]] <- merge_config(dv, uv, c(path, key))
     } else {
-      defaults[[key]] <- user[[key]]
+      defaults[[key]] <- uv
     }
   }
   defaults
@@ -45,12 +54,30 @@ merge_config <- function(defaults, user) {
 
 config_abort <- function(msg) avior_abort(msg, class = "avior_config_error")
 
-avior_config_load <- function(root = ".") {
-  path <- file.path(root, "validation", "avior.yml")
-  if (!file.exists(path)) {
-    config_abort(paste0("config not found: ", path, " (run `avior init` first)"))
+# Config discovery (FR-X-1): the default home is <root>/validation/avior.yml.
+# A renamed validation dir is supported when it is unambiguous: exactly one
+# <root>/<dir>/avior.yml exists and its project.validation_dir names that dir.
+find_config <- function(root) {
+  default <- file.path(root, "validation", "avior.yml")
+  if (file.exists(default)) return(default)
+  candidates <- Sys.glob(file.path(root, "*", "avior.yml"))
+  if (length(candidates) == 1) return(candidates[1])
+  if (length(candidates) > 1) {
+    config_abort(paste0("multiple avior.yml candidates found under ", root, ": ",
+                        paste(candidates, collapse = ", "),
+                        " (keep exactly one validation dir)"))
   }
-  user <- read_yaml_file(path)
+  config_abort(paste0("config not found: ", default, " (run `avior init` first)"))
+}
+
+avior_config_load <- function(root = ".") {
+  path <- find_config(root)
+  user <- tryCatch(
+    read_yaml_file(path),
+    error = function(e) {
+      config_abort(paste0("cannot parse ", path, ": ", conditionMessage(e)))
+    }
+  )
   if (!is.list(user)) config_abort("avior.yml is not a YAML mapping")
 
   if (is.null(user$avior)) {
@@ -89,6 +116,19 @@ avior_config_load <- function(root = ".") {
   if (!cfg$policy$na_action %in% c("reweight", "zero", "fail")) {
     config_abort(paste0("avior.yml: policy.na_action must be reweight|zero|fail, got `",
                         cfg$policy$na_action, "`"))
+  }
+
+  if (!cfg$scope$intended_for_use %in% c("auto", "explicit")) {
+    config_abort(paste0("avior.yml: scope.intended_for_use must be auto|explicit, got `",
+                        cfg$scope$intended_for_use, "`"))
+  }
+
+  actual_dir <- basename(dirname(path))
+  if (!identical(cfg$project$validation_dir, actual_dir)) {
+    config_abort(paste0("avior.yml: project.validation_dir (`",
+                        cfg$project$validation_dir,
+                        "`) does not match the directory containing avior.yml (`",
+                        actual_dir, "`)"))
   }
 
   rationale <- cfg$policy$rationale

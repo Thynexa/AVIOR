@@ -10,7 +10,9 @@ init_config_template <- function(project_name) {
   tpl <- system.file("templates", "avior.yml", package = "avior", mustWork = TRUE)
   txt <- readChar(tpl, file.size(tpl), useBytes = TRUE)
   Encoding(txt) <- "UTF-8"
-  lines <- strsplit(txt, "\n", fixed = TRUE)[[1]]
+  # split on \r?\n: a CRLF checkout of the template must not leak CR bytes
+  # into the generated file (FR-X-8 mandates LF on every platform)
+  lines <- strsplit(txt, "\r?\n")[[1]]
   sub("__PROJECT_NAME__", project_name, lines, fixed = TRUE)
 }
 
@@ -23,7 +25,7 @@ avior_init <- function(root = ".", ci = NULL) {
   skipped <- character(0)
 
   for (d in c(vdir, file.path(vdir, "decisions"), file.path(vdir, "tests"),
-              file.path(vdir, ".cache"))) {
+              file.path(vdir, "evidence"), file.path(vdir, ".cache"))) {
     if (!dir.exists(d)) {
       dir.create(d, recursive = TRUE)
       created <- c(created, paste0(d, "/"))
