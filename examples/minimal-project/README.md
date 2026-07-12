@@ -5,6 +5,8 @@
 一个 5 包的假想 R 项目，覆盖了所有关键情形：三分类、直接/间接调用、低/中/高三档处理深度全覆盖、两种决策（include / include_with_tests；`exclude` 未在例中）、定向测试、recommended 包被 `scope.include` 强制纳入。
 
 > ⚠️ **示意值声明**：本示例在无 R 环境下手工组装，`scores.yml` 中的风险分为**示意值**，真实运行时由 riskmetric 引擎产出。其余结构（清单、决策、追溯矩阵、环境指纹、哈希清单）均为最终格式。
+>
+> **格式说明**：avior 生成的 YAML 为无注释的 block 风格（PRD FR-X-8 规范化序列化）；本示例文件中的行内注释与对齐排版为**讲解用途**，字段名、结构与取值与冻结契约逐项一致。
 
 ---
 
@@ -40,9 +42,10 @@ minimal-project/
     │   ├── test-lme4-fit.R            # ② 人工：针对用途的定向测试
     │   └── test-survival-coxph.R      # ② 人工：强制纳入包同样要补定向测试
     └── evidence/bundle-20260708T120000Z/   # ③ bundle 产出（不可变证据包）
-        ├── report.html               # 验证报告（GAMP 5 叙事结构）
+        ├── report.html               # 验证报告（GAMP 5 叙事结构，含范围与边界声明）
         ├── traceability.csv          # 追溯矩阵：每行一条完整证据链
-        ├── environment.json          # 环境指纹（R 版本/快照/lockfile 哈希）
+        ├── environment.json          # 环境指纹（R 版本/快照/lockfile 哈希/locale/BLAS/容器摘要）
+        ├── session-info.txt          # sessionInfo() 全文（FR-BUNDLE-5）
         ├── BUNDLE.yml                # 元数据 + 完整性状态
         ├── snapshot/                 # 编译时点的输入快照副本
         └── MANIFEST.sha256           # 全文件哈希 → 内部一致性校验（防篡改锚点在外部，见下）

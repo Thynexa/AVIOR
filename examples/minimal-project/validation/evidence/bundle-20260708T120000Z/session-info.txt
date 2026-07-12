@@ -1,0 +1,22 @@
+# sessionInfo() 全文快照（FR-BUNDLE-5）。示意值（ILLUSTRATIVE）：真实运行时由 avior bundle 采集。
+R version 4.3.2 (2023-10-31)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 22.04.3 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/R/lib/libRblas.so
+LAPACK: /usr/lib/R/lib/libRlapack.so;  LAPACK version 3.11.0
+
+locale:
+ [1] LC_COLLATE=C          LC_CTYPE=C.UTF-8      LC_MONETARY=C.UTF-8
+ [4] LC_NUMERIC=C          LC_TIME=C.UTF-8
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base
+
+loaded via a namespace (and not attached):
+[1] avior_0.1.0-dev   riskmetric_0.2.4  jsonlite_1.8.8    yaml_2.3.8
+[5] cli_3.6.2         digest_0.6.34

@@ -16,7 +16,7 @@ policy:
     has_bug_reports_url: 0.5
     downloads_1yr: 1.0
     covr_coverage: 2.0          # 统计计算项目，覆盖率权重加大
-    bugs_status: 1.0
+    last_30_bugs_status: 1.0
   risk_tiers: { low_max: 0.25, high_min: 0.55 }
   na_action: reweight
   rationale: >

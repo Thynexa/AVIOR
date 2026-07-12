@@ -45,7 +45,21 @@
 并采用 <strong>intended-for-use 聚焦原则</strong>：深度验证只针对项目直接调用的包，
 间接依赖仅做版本管理。合规责任主体为申办方，本报告仅为证据之一。</p>
 
-<h2>2. 范围与包分类</h2>
+<h2>2. 范围与边界声明</h2>
+<p>本证据包证明：<strong>本项目所用的 R 包环境</strong>已按既定策略完成与风险相称的评估、决策与定向测试，且环境可复现（PRD §1.4）。</p>
+<p>本证据包<strong>不覆盖</strong>以下事项，其责任归属如下：</p>
+<table>
+  <tr><th>范围之外</th><th>责任归属与依据</th></tr>
+  <tr><td>计算环境资质确认（IQ/OQ/PQ）</td><td>申办方 IT 在其 QMS 下的责任，受 GAMP 5 管辖；R Validation Hub 白皮书明确将基础设施验证列为范围之外</td></tr>
+  <tr><td>项目分析代码的验证（双编程 / 独立 QC）</td><td>程序验证领域，申办方统计编程流程负责；包环境证据是分析结果可信的前提之一，不是全部</td></tr>
+  <tr><td>21 CFR Part 11 电子记录/签名控制</td><td>宿主系统（QMS/eDMS）责任；本证据包为 signature-ready，签署在客户体系中完成</td></tr>
+</table>
+<p><code>base</code>/<code>recommended</code> 包默认豁免的出处：R Foundation
+《R: Regulatory Compliance and Validation Issues》（R-FDA.pdf）——Base R 与 Recommended
+包随 R 发行、经 R Core SDLC 管理，视为低风险；本项目中 <code>survival</code>
+因承担主分析经 <code>scope.include</code> 拉回评估范围（见下节）。</p>
+
+<h2>3. 范围与包分类</h2>
 <p>依据 <code>renv.lock</code> 与项目源码分析，共 5 个包，按三分类与调用角色处理如下：</p>
 <table>
   <tr><th>包</th><th>版本</th><th>分类</th><th>角色</th><th>处理</th></tr>
@@ -56,7 +70,7 @@
   <tr><td>survival</td><td>3.5-7</td><td class="exempt">recommended</td><td>direct</td><td>默认豁免；因承担主分析经 <code>scope.include</code> 强制纳入评估（覆盖行为已记录于清单）</td></tr>
 </table>
 
-<h2>3. 风险评分与阈值</h2>
+<h2>4. 风险评分与阈值</h2>
 <p>阈值：low ≤ 0.25 &lt; medium &lt; 0.55 ≤ high。阈值来源见策略文件 <code>rationale</code> 字段（审计辩护依据）。</p>
 <table>
   <tr><th>包</th><th>风险分</th><th>档位</th><th>说明</th></tr>
@@ -66,7 +80,7 @@
   <tr><td>survival</td><td>0.61</td><td class="high">high</td><td>recommended 强制纳入后照常评分；高风险源于社区指标而非质量缺陷</td></tr>
 </table>
 
-<h2>4. 决策汇总</h2>
+<h2>5. 决策汇总</h2>
 <table>
   <tr><th>包</th><th>决策</th><th>用途声明</th><th>理由</th><th>评审人</th></tr>
   <tr><td>jsonlite</td><td>include</td><td>结果序列化为 JSON 落盘</td><td>低风险，用途简单无数值计算风险</td><td>jin@example.com</td></tr>
@@ -75,7 +89,7 @@
   <tr><td>survival</td><td>include_with_tests</td><td>coxph 拟合主分析组间风险比</td><td>recommended 默认豁免，按四准则第一条（用途）强制纳入；补充金标准比对测试</td><td>jin@example.com</td></tr>
 </table>
 
-<h2>5. 测试证据</h2>
+<h2>6. 测试证据</h2>
 <p>对 <code>include_with_tests</code> 的包运行针对声明用途的定向测试：</p>
 <table>
   <tr><th>测试文件</th><th>被测包</th><th>用例</th><th>通过</th><th>失败</th><th>状态</th></tr>
@@ -84,14 +98,18 @@
 </table>
 <p>覆盖率作为参考指标采集，不作门禁阈值（覆盖率高 ≠ 关键函数被测到）。</p>
 
-<h2>6. 环境与可复现性</h2>
+<h2>7. 环境与可复现性</h2>
 <table class="meta">
   <tr><td>R 版本</td><td>4.3.2</td></tr>
   <tr><td>平台</td><td>x86_64-pc-linux-gnu</td></tr>
   <tr><td>仓库快照</td><td>CRAN @ 2024-01-15（PPM）</td></tr>
   <tr><td>renv.lock 指纹</td><td>见 environment.json 的 lockfile.sha256</td></tr>
+  <tr><td>locale</td><td>LC_COLLATE=C</td></tr>
+  <tr><td>BLAS / LAPACK</td><td>reference BLAS（libRblas）/ LAPACK 3.11.0（随 R 发行）</td></tr>
+  <tr><td>容器镜像摘要</td><td>无（非容器环境，记 null）</td></tr>
+  <tr><td>会话指纹</td><td>见 <code>session-info.txt</code>（sessionInfo() 全文）</td></tr>
 </table>
-<p>凭 <code>environment.json</code> 的仓库快照与 lockfile 指纹可完全复现本次评估的包环境。</p>
+<p>凭 <code>environment.json</code> 的仓库快照、lockfile 指纹与 BLAS/locale 记录可完全复现本次评估的包环境（数值可复现性依赖 BLAS/LAPACK 层与 locale，故一并钉入指纹）。</p>
 
 <h2>附录 · 完整性</h2>
 <p>本证据包所有文件的 SHA-256 记录于 <code>MANIFEST.sha256</code>。
