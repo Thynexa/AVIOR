@@ -1,0 +1,92 @@
+# avior_scan orchestration (FR-SCAN-1..5): inventory generation, scope
+# logic, overrides, determinism, and semantic equality with the M0 example.
+
+test_that("scan on the fixture matches the hand-built inventory semantically", {
+  root <- local_example_project()
+  unlink(file.path(root, "validation", "inventory.yml"))
+  avior_scan(root)
+
+  got <- avior:::read_yaml_file(file.path(root, "validation", "inventory.yml"))
+  want <- avior:::read_yaml_file(file.path(fixture_project_path(),
+                                           "validation", "inventory.yml"))
+
+  expect_identical(got$avior, want$avior)
+  expect_identical(got$generated_by, want$generated_by)
+  expect_identical(got$lockfile, want$lockfile)
+  expect_identical(got$summary, want$summary)
+
+  expect_identical(length(got$packages), length(want$packages))
+  for (i in seq_along(want$packages)) {
+    w <- want$packages[[i]]
+    g <- got$packages[[i]]
+    for (field in setdiff(names(w), "note")) {
+      expect_identical(g[[field]], w[[field]],
+                       label = paste0("packages[", i, "]$", field, " (",
+                                      w$name, ") got"))
+    }
+  }
+})
+
+test_that("scan output is byte-identical across reruns (FR-X-7/8)", {
+  root <- local_example_project()
+  inv <- file.path(root, "validation", "inventory.yml")
+  avior_scan(root)
+  first <- readBin(inv, "raw", file.size(inv))
+  avior_scan(root)
+  expect_identical(readBin(inv, "raw", file.size(inv)), first)
+})
+
+test_that("forced inclusion of a recommended package is recorded (FR-SCAN-4)", {
+  root <- local_example_project()
+  avior_scan(root)
+  inv <- avior:::read_yaml_file(file.path(root, "validation", "inventory.yml"))
+  surv <- Filter(function(p) p$name == "survival", inv$packages)[[1]]
+  expect_identical(surv$classification, "recommended")
+  expect_true(surv$in_scope)
+  expect_true(surv$overridden)
+  expect_identical(surv$override_source, "avior.yml scope.include")
+})
+
+test_that("recommended packages are exempt by default; exclude is recorded", {
+  root <- local_example_project()
+  cfgfile <- file.path(root, "validation", "avior.yml")
+  txt <- readLines(cfgfile)
+  txt <- sub("  include: \\[survival\\].*", "  include: []", txt)
+  txt <- sub("  exclude: \\[\\]", "  exclude: [jsonlite]", txt)
+  writeLines(txt, cfgfile)
+
+  avior_scan(root)
+  inv <- avior:::read_yaml_file(file.path(root, "validation", "inventory.yml"))
+  by_name <- function(n) Filter(function(p) p$name == n, inv$packages)[[1]]
+
+  surv <- by_name("survival")
+  expect_false(surv$in_scope)          # exempt again without scope.include
+  expect_null(surv$overridden)
+
+  js <- by_name("jsonlite")
+  expect_false(js$in_scope)
+  expect_true(js$overridden)
+  expect_identical(js$override_source, "avior.yml scope.exclude")
+
+  expect_identical(inv$summary$in_scope_assessed, 2L)   # lme4 + mvtnorm
+  expect_identical(inv$summary$recommended_exempt, 1L)  # survival
+  expect_identical(inv$summary$force_included, 0L)
+})
+
+test_that("transitive provenance names the requiring package", {
+  root <- local_example_project()
+  avior_scan(root)
+  inv <- avior:::read_yaml_file(file.path(root, "validation", "inventory.yml"))
+  minqa <- Filter(function(p) p$name == "minqa", inv$packages)[[1]]
+  expect_identical(minqa$role, "transitive")
+  expect_false(minqa$in_scope)
+  expect_identical(minqa$source, "lme4 Requirements")
+})
+
+test_that("scan records the lockfile sha256 drift baseline (FR-SCAN-5)", {
+  root <- local_example_project()
+  avior_scan(root)
+  inv <- avior:::read_yaml_file(file.path(root, "validation", "inventory.yml"))
+  expect_identical(inv$lockfile$sha256,
+                   avior:::sha256_file(file.path(root, "renv.lock")))
+})

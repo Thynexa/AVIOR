@@ -43,10 +43,22 @@ read_renv_lock <- function(path) {
     stringsAsFactors = FALSE
   )
   if (any(!nzchar(df$name))) avior_abort(paste0(path, ": package entry without a name"))
+  df$requirements <- I(lapply(pkgs, function(p) as.character(unlist(p$Requirements))))
   df <- df[order_c(df$name), , drop = FALSE]
   rownames(df) <- NULL
   attr(df, "r_version") <- lock$R$Version %||% NA_character_
   df
+}
+
+# Provenance for a transitive package: the first (C-order) lockfile package
+# that lists it in Requirements, e.g. "lme4 Requirements"; falls back to
+# "renv.lock" when no parent is recorded.
+transitive_source <- function(lock, pkg) {
+  has <- vapply(seq_len(nrow(lock)), function(i) pkg %in% lock$requirements[[i]],
+                logical(1))
+  parents <- lock$name[has & lock$name != pkg]
+  if (length(parents) == 0) return("renv.lock")
+  paste0(sort_c(parents)[1], " Requirements")
 }
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
