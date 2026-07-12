@@ -42,9 +42,16 @@ run_command <- function(opts) {
     },
     assess = {
       deep <- "--deep" %in% opts$args
+      offline <- "--offline" %in% opts$args
       i <- which(opts$args == "--only")
-      only <- if (length(i) == 1 && i < length(opts$args)) opts$args[i + 1] else NULL
-      s <- avior_assess(".", only = only, deep = deep)
+      if (length(i) > 1) avior_abort("--only given more than once")
+      only <- NULL
+      if (length(i) == 1) {
+        if (i == length(opts$args)) avior_abort("--only requires a package name")
+        only <- opts$args[i + 1]
+      }
+      s <- avior_assess(".", only = only, deep = deep,
+                        network_available = !offline)
       list(command = "assess", status = "ok",
            engine = unclass(s$engine), run = unclass(s$run),
            packages = length(s$packages),
@@ -52,7 +59,10 @@ run_command <- function(opts) {
     },
     review = {
       r <- avior_review(".")
-      list(command = "review", status = "ok",
+      # review reports but does not gate (check does); "findings" instead of
+      # "ok" so JSON consumers cannot mistake a flagged state for a clean one
+      list(command = "review",
+           status = if (length(r$findings) > 0) "findings" else "ok",
            stubs_created = r$stubs_created, findings = r$findings)
     },
     check = {

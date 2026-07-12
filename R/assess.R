@@ -14,10 +14,12 @@ read_inventory <- function(cfg) {
   read_yaml_file(path)
 }
 
-na_cause <- function(metric_id, registry, ran) {
-  if (!ran) return("execution")
-  if (isTRUE(registry$needs_network[registry$id == metric_id])) return("network")
-  "metadata"
+# FR-X-5 cause enum is network|execution: "network" = may self-heal when
+# online (triggers cache refresh); "execution" = only --deep (or a code fix)
+# resolves it, never auto-refreshed. A ran-but-NA offline-safe metric maps
+# to "execution" for the same reason: re-assessing online won't help.
+na_cause <- function(metric_id, registry) {
+  if (isTRUE(registry$needs_network[registry$id == metric_id])) "network" else "execution"
 }
 
 aggregate_score <- function(values, weights, na_action, pkg) {
@@ -35,9 +37,11 @@ aggregate_score <- function(values, weights, na_action, pkg) {
     v[is.na(v)] <- 0
   }
   keep <- !is.na(v)
-  if (!any(keep)) {
-    avior_abort(paste0("no metric values available to score ", pkg,
-                       " (check network access or run with --deep)"))
+  if (!any(keep) || sum(w[keep]) <= 0) {
+    avior_abort(paste0(
+      "no effective metric weight left to score ", pkg,
+      " (missing metrics or all remaining weights are zero; ",
+      "check network access, run with --deep, or fix policy.weights)"))
   }
   1 - stats::weighted.mean(v[keep], w[keep])
 }
@@ -46,10 +50,13 @@ risk_tier <- function(score, tiers) {
   if (score <= tiers$low_max) "low" else if (score >= tiers$high_min) "high" else "medium"
 }
 
-cache_key_path <- function(cfg, pkg, version, engine, metric_ids) {
+# Key covers the FULL policy metric set plus the deep flag, not just the
+# metrics actually run: keying on run_ids alone lets a policy metric-set
+# change silently reuse a stale entry that lacks the new metrics.
+cache_key_path <- function(cfg, pkg, version, engine, metric_ids, deep) {
   key <- digest::digest(list(pkg = pkg, version = version,
                              engine = engine$id, engine_version = engine$version,
-                             metrics = sort_c(metric_ids)))
+                             metrics = sort_c(metric_ids), deep = deep))
   file.path(cfg$paths$validation, ".cache", "scores", paste0(key, ".yml"))
 }
 
@@ -86,24 +93,34 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
   scored_ats <- character(0)
 
   for (p in pkgs) {
-    cache_file <- cache_key_path(cfg, p$name, p$version, eng, run_ids)
+    cache_file <- cache_key_path(cfg, p$name, p$version, eng, metric_ids, deep)
     entry <- NULL
     force_fresh <- !is.null(only) && p$name %in% only
     if (!force_fresh && file.exists(cache_file)) {
       entry <- read_yaml_file(cache_file)
+      # defensive: a cached entry must cover the full policy metric set
+      if (!setequal(names(entry$metrics), metric_ids)) entry <- NULL
       # improvable hit (FR-X-5): only network-cause NAs, only when online
-      na_causes <- unlist(entry$na_causes)
-      if (refresh_na && network_available &&
-          any(na_causes == "network")) {
+      if (!is.null(entry) && refresh_na && network_available &&
+          any(unlist(entry$na_causes) == "network")) {
         entry <- NULL
       }
     }
 
     if (is.null(entry)) {
       res <- eng$assess(p$name, p$version, run_ids, list(deep = deep))
+      # 7.2 adapter contract validation: values are goodness in [0,1] or NA
+      bad <- !is.na(res$value) & (res$value < 0 | res$value > 1)
+      if (any(bad)) {
+        avior_abort(paste0("engine `", eng$id, "` returned values outside [0,1] for ",
+                           p$name, ": ", paste(res$metric_id[bad], collapse = ", ")))
+      }
       values <- stats::setNames(as.list(res$value), res$metric_id)
-      # metrics in the policy but not run this time (execution tier, no --deep)
-      for (mid in setdiff(metric_ids, run_ids)) values[[mid]] <- NA_real_
+      values <- values[names(values) %in% metric_ids]   # ignore extraneous ids
+      # policy metrics the engine did not return (or that were not run: the
+      # execution tier without --deep) are NA and must be disclosed
+      for (mid in setdiff(metric_ids, names(values))) values[[mid]] <- NA_real_
+      values <- values[metric_ids]
       nas <- names(values)[vapply(values, is.na, logical(1))]
       entry <- list(
         package = p$name,
@@ -111,15 +128,17 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
         metrics = values,
         na_metrics = nas,
         na_causes = stats::setNames(
-          lapply(nas, function(mid) na_cause(mid, registry, mid %in% run_ids)),
-          nas),
+          lapply(nas, function(mid) na_cause(mid, registry)), nas),
         scored_at = avior_timestamp()
       )
       dir.create(dirname(cache_file), recursive = TRUE, showWarnings = FALSE)
       write_yaml_canonical(entry, cache_file)
     }
 
-    score <- aggregate_score(entry$metrics, weights, cfg$policy$na_action, p$name)
+    # round BEFORE tiering so the recorded score and its tier can never
+    # contradict (0.2500049 must not read `score: 0.25, tier: medium`)
+    score <- round(aggregate_score(entry$metrics, weights,
+                                   cfg$policy$na_action, p$name), 4)
     pkg_out <- list(
       version = p$version,
       metrics = yaml_flow(entry$metrics[metric_ids]),
@@ -139,7 +158,7 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
     engine = yaml_flow(list(id = eng$id, version = eng$version)),
     scored_at = if (length(scored_ats) > 0) max(scored_ats) else avior_timestamp(),
     run = yaml_flow(list(deep = deep, network = network_available)),
-    packages = scored[sort_c(names(scored))],
+    packages = if (length(scored) > 0) scored[sort_c(names(scored))] else list(),
     na_metrics = yaml_seq(sort_c(unique(all_na)))
   )
   write_yaml_canonical(scores, file.path(cfg$paths$validation, "scores.yml"))

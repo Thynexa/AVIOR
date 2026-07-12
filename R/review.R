@@ -61,14 +61,22 @@ review_findings <- function(cfg, inventory = NULL, scores = NULL) {
       next
     }
     d <- tryCatch(read_yaml_file(path), error = function(e) NULL)
-    if (is.null(d)) {
+    if (is.null(d) || !is.list(d)) {
       add(finding(pkg, "invalid_decision",
-                  paste0("cannot parse ", path),
-                  fix = "fix the YAML syntax in the decision record"))
+                  paste0("cannot parse ", path, " as a decision record"),
+                  fix = "fix the YAML structure in the decision record (see PRD 6.3)"))
       next
     }
 
-    tier <- scores$packages[[pkg]]$tier %||% NA_character_
+    sp <- scores$packages[[pkg]]
+    if (is.null(sp)) {
+      # fail closed: without a score there is no tier, so tier-based depth
+      # rules cannot be enforced — the gate must not silently pass
+      add(finding(pkg, "unscored_package",
+                  "in-scope package has no entry in scores.yml",
+                  fix = "run `avior assess` (or `avior assess --only <pkg>`)"))
+    }
+    tier <- sp$tier %||% NA_character_
     dec <- d$decision %||% ""
 
     if (!nzchar(dec) || !dec %in% DECISION_ENUM) {
@@ -91,21 +99,25 @@ review_findings <- function(cfg, inventory = NULL, scores = NULL) {
                          " but the inventory has ", p$version),
                   fix = "re-run `avior assess` and re-review the package"))
     }
-    if (tier %in% c("medium", "high") &&
+    if (tier %in% c("medium", "high") && !identical(dec, "exclude") &&
         !nzchar(trimws(d$use_statement %||% ""))) {
+      # use_statement drives targeted tests / AI drafting (FR-REVIEW-4);
+      # it is meaningless for a package being removed, so excludes are exempt
       add(finding(pkg, "missing_use_statement",
                   paste0("tier is ", tier, " but use_statement is empty (FR-REVIEW-4)"),
                   fix = "declare how this project uses the package"))
     }
     tests <- unlist(d$tests)
     if (identical(dec, "include_with_tests")) {
-      existing <- vapply(tests, function(t)
-        file.exists(file.path(cfg$root, t)) ||
-          file.exists(file.path(cfg$paths$validation, sub("^validation/", "", t))),
-        logical(1))
+      # tests must live under the validation dir ("tests/..." or
+      # "validation/tests/..." spellings); no path traversal
+      existing <- vapply(tests, function(t) {
+        if (grepl("..", t, fixed = TRUE)) return(FALSE)
+        file.exists(file.path(cfg$paths$validation, sub("^validation/", "", t)))
+      }, logical(1))
       if (length(tests) == 0 || !all(existing)) {
         add(finding(pkg, "missing_tests",
-                    "include_with_tests requires at least one existing test file",
+                    "include_with_tests requires at least one existing test file under the validation dir",
                     fix = "add targeted tests under validation/tests/ and list them"))
       }
     }

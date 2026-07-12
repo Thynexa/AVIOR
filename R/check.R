@@ -117,7 +117,7 @@ check_test_results <- function(cfg, inventory) {
   dec_dir <- file.path(cfg$paths$validation, "decisions")
   for (f in sort_c(list.files(dec_dir, pattern = "\\.yml$", full.names = TRUE))) {
     d <- tryCatch(read_yaml_file(f), error = function(e) NULL)
-    if (is.null(d) || !identical(d$decision, "include_with_tests")) next
+    if (is.null(d) || !is.list(d) || !identical(d$decision, "include_with_tests")) next
     if (!(d$package %in% tested)) {
       add(finding(d$package, "missing_test_results",
                   "include_with_tests decision but no recorded test results",
@@ -129,12 +129,17 @@ check_test_results <- function(cfg, inventory) {
 
 check_excluded_present <- function(cfg, inventory) {
   findings <- list()
-  inv_names <- vapply(inventory$packages, function(p) p$name, character(1))
+  # judge against the LIVE lockfile when readable: after the user removes
+  # the dependency (the suggested fix) but before a re-scan, this rule must
+  # not keep reporting a now-false fact; the stale inventory is the fallback
+  present <- tryCatch(
+    read_renv_lock(file.path(cfg$root, cfg$scope$lockfile))$name,
+    error = function(e) vapply(inventory$packages, function(p) p$name, character(1)))
   dec_dir <- file.path(cfg$paths$validation, "decisions")
   for (f in sort_c(list.files(dec_dir, pattern = "\\.yml$", full.names = TRUE))) {
     d <- tryCatch(read_yaml_file(f), error = function(e) NULL)
-    if (is.null(d) || !identical(d$decision, "exclude")) next
-    if (d$package %in% inv_names) {
+    if (is.null(d) || !is.list(d) || !identical(d$decision, "exclude")) next
+    if (d$package %in% present) {
       findings[[length(findings) + 1L]] <- finding(
         d$package, "excluded_but_present",
         "decision is `exclude` but the package is still in the lockfile (A6)",
