@@ -7,27 +7,28 @@ generated_by: "avior assess"
 # ============================================================
 engine: { id: riskmetric, version: "0.2.4" }
 scored_at: "2026-07-08T11:40:00Z"
+run: { deep: true, network: true }   # 运行模式披露（FR-ASSESS-1）：execution 档指标经 --deep 实际运行
 packages:                       # 包序：包名字母序（FR-X-7 确定性排序）
   jsonlite:
     version: "1.8.8"
-    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.95, covr_coverage: 0.98, bugs_status: 0.90 }
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.95, covr_coverage: 0.98, last_30_bugs_status: 0.9 }
     score: 0.12
     tier: low
   lme4:
     version: "1.1-35.1"
-    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.88, covr_coverage: 0.35, bugs_status: 0.55 }
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.88, covr_coverage: 0.35, last_30_bugs_status: 0.55 }
     score: 0.58
     tier: high
     note: "高风险主因：复杂统计计算 + 覆盖率信号偏低；非质量缺陷，需针对用途补测"
   mvtnorm:
     version: "1.2-4"
-    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.93, covr_coverage: 0.55, bugs_status: 0.75 }
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.93, covr_coverage: 0.55, last_30_bugs_status: 0.75 }
     score: 0.38
     tier: medium
     note: "medium 档：depth_by_risk.medium=use_statement_required，须填用途声明但不强制定向测试"
   survival:
     version: "3.5-7"
-    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.90, covr_coverage: 0.28, bugs_status: 0.50 }
+    metrics:   { has_vignettes: 1.0, has_news: 1.0, has_bug_reports_url: 1.0, downloads_1yr: 0.9, covr_coverage: 0.28, last_30_bugs_status: 0.5 }
     score: 0.61
     tier: high
     note: "recommended 包，经 scope.include 强制纳入后照常评分；高风险源于社区指标（覆盖率信号）而非质量缺陷"

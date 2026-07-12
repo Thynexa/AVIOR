@@ -45,7 +45,22 @@
 并采用 <strong>intended-for-use 聚焦原则</strong>：深度验证只针对项目直接调用的包，
 间接依赖仅做版本管理。合规责任主体为申办方，本报告仅为证据之一。</p>
 
-<h2>2. 范围与包分类</h2>
+<h2>2. 范围与边界声明</h2>
+<p>本证据包证明：<strong>本项目所用的 R 包环境</strong>已按既定策略完成与风险相称的评估、决策与定向测试，且环境可复现（PRD §1.4）。</p>
+<p>本证据包<strong>不覆盖</strong>以下事项，其责任归属如下：</p>
+<table>
+  <tr><th>范围之外</th><th>责任归属与依据</th></tr>
+  <tr><td>计算环境资质确认（IQ/OQ/PQ）</td><td>申办方 IT 在其 QMS 下的责任，受 GAMP 5 管辖；R Validation Hub 白皮书明确将基础设施验证列为范围之外</td></tr>
+  <tr><td>项目分析代码的验证（双编程 / 独立 QC）</td><td>程序验证领域，申办方统计编程流程负责；包环境证据是分析结果可信的前提之一，不是全部</td></tr>
+  <tr><td>21 CFR Part 11 电子记录/签名控制</td><td>宿主系统（QMS/eDMS）责任；本证据包为 signature-ready，签署在客户体系中完成</td></tr>
+</table>
+<p><strong><code>base</code>/<code>recommended</code> 包默认豁免的依据分层</strong>：</p>
+<ul>
+  <li><em>事实依据</em>——R Foundation《R: Regulatory Compliance and Validation Issues》（R-FDA.pdf）支持的是「Base R 与 Recommended 包属 R 官方发行范围、由 R Core 按其 SDLC 开发与维护」这一事实；该文档并未给出「视为低风险」的结论，反而要求终端组织按 intended use 制定自己的 SOP 与风险控制。</li>
+  <li><em>策略推论</em>——「默认豁免（低风险起点）」是 <strong>AVIOR 的策略默认值</strong>（本项目 <code>avior.yml</code> 采用），其风险分级方法论出处为 R Validation Hub 白皮书四准则；豁免非铁律，可经 <code>scope.include</code> 按用途拉回评估范围。本项目中 <code>survival</code> 即因承担主分析被拉回（见下节）。</li>
+</ul>
+
+<h2>3. 范围与包分类</h2>
 <p>依据 <code>renv.lock</code> 与项目源码分析，共 5 个包，按三分类与调用角色处理如下：</p>
 <table>
   <tr><th>包</th><th>版本</th><th>分类</th><th>角色</th><th>处理</th></tr>
@@ -56,8 +71,11 @@
   <tr><td>survival</td><td>3.5-7</td><td class="exempt">recommended</td><td>direct</td><td>默认豁免；因承担主分析经 <code>scope.include</code> 强制纳入评估（覆盖行为已记录于清单）</td></tr>
 </table>
 
-<h2>3. 风险评分与阈值</h2>
-<p>阈值：low ≤ 0.25 &lt; medium &lt; 0.55 ≤ high。阈值来源见策略文件 <code>rationale</code> 字段（审计辩护依据）。</p>
+<h2>4. 风险评分与阈值</h2>
+<p>阈值：low ≤ 0.25 &lt; medium &lt; 0.55 ≤ high。阈值来源见策略文件 <code>rationale</code> 字段（审计辩护依据）。
+本次评估为 <code>--deep</code> 运行（<code>run: { deep: true, network: true }</code>，见 scores.yml）：
+execution 档指标 <code>covr_coverage</code> 经策略显式选入并实际运行，无缺失指标（na_metrics 为空），
+生效权重与策略权重一致。</p>
 <table>
   <tr><th>包</th><th>风险分</th><th>档位</th><th>说明</th></tr>
   <tr><td>jsonlite</td><td>0.12</td><td class="low">low</td><td>成熟稳定，元数据信号良好</td></tr>
@@ -66,7 +84,7 @@
   <tr><td>survival</td><td>0.61</td><td class="high">high</td><td>recommended 强制纳入后照常评分；高风险源于社区指标而非质量缺陷</td></tr>
 </table>
 
-<h2>4. 决策汇总</h2>
+<h2>5. 决策汇总</h2>
 <table>
   <tr><th>包</th><th>决策</th><th>用途声明</th><th>理由</th><th>评审人</th></tr>
   <tr><td>jsonlite</td><td>include</td><td>结果序列化为 JSON 落盘</td><td>低风险，用途简单无数值计算风险</td><td>jin@example.com</td></tr>
@@ -75,7 +93,7 @@
   <tr><td>survival</td><td>include_with_tests</td><td>coxph 拟合主分析组间风险比</td><td>recommended 默认豁免，按四准则第一条（用途）强制纳入；补充金标准比对测试</td><td>jin@example.com</td></tr>
 </table>
 
-<h2>5. 测试证据</h2>
+<h2>6. 测试证据</h2>
 <p>对 <code>include_with_tests</code> 的包运行针对声明用途的定向测试：</p>
 <table>
   <tr><th>测试文件</th><th>被测包</th><th>用例</th><th>通过</th><th>失败</th><th>状态</th></tr>
@@ -84,16 +102,31 @@
 </table>
 <p>覆盖率作为参考指标采集，不作门禁阈值（覆盖率高 ≠ 关键函数被测到）。</p>
 
-<h2>6. 环境与可复现性</h2>
+<h2>7. 环境与可复现性</h2>
 <table class="meta">
   <tr><td>R 版本</td><td>4.3.2</td></tr>
   <tr><td>平台</td><td>x86_64-pc-linux-gnu</td></tr>
   <tr><td>仓库快照</td><td>CRAN @ 2024-01-15（PPM）</td></tr>
   <tr><td>renv.lock 指纹</td><td>见 environment.json 的 lockfile.sha256</td></tr>
+  <tr><td>locale</td><td>LC_COLLATE=C</td></tr>
+  <tr><td>BLAS / LAPACK</td><td>reference BLAS（libRblas）/ LAPACK 3.11.0（随 R 发行）</td></tr>
+  <tr><td>容器镜像摘要</td><td>无（非容器环境，记 null）</td></tr>
+  <tr><td>会话指纹</td><td>见 <code>session-info.txt</code>（sessionInfo() 全文）</td></tr>
 </table>
-<p>凭 <code>environment.json</code> 的仓库快照与 lockfile 指纹可完全复现本次评估的包环境。</p>
+<p>凭 <code>environment.json</code> 的仓库快照、lockfile 指纹与 BLAS/locale 记录可完全复现本次评估的包环境（数值可复现性依赖 BLAS/LAPACK 层与 locale，故一并钉入指纹）。</p>
 
-<h2>附录 · 完整性</h2>
+<h2>附录 A · 逐包明细</h2>
+<p>机器可读版本见 <code>traceability.csv</code>（审计主入口，每行一条完整证据链）。</p>
+<table>
+  <tr><th>包</th><th>版本</th><th>分类</th><th>角色</th><th>风险分</th><th>档位</th><th>决策</th><th>测试</th><th>状态</th></tr>
+  <tr><td>jsonlite</td><td>1.8.8</td><td>contributed</td><td>direct</td><td>0.12</td><td class="low">low</td><td>include</td><td>—</td><td>—</td></tr>
+  <tr><td>lme4</td><td>1.1-35.1</td><td>contributed</td><td>direct</td><td>0.58</td><td class="high">high</td><td>include_with_tests</td><td>tests/test-lme4-fit.R</td><td class="ok">pass</td></tr>
+  <tr><td>minqa</td><td>1.2.6</td><td>contributed</td><td>transitive</td><td>—</td><td>—</td><td>version_managed</td><td>—</td><td>—</td></tr>
+  <tr><td>mvtnorm</td><td>1.2-4</td><td>contributed</td><td>direct</td><td>0.38</td><td class="medium">medium</td><td>include</td><td>—</td><td>—</td></tr>
+  <tr><td>survival</td><td>3.5-7</td><td>recommended</td><td>direct</td><td>0.61</td><td class="high">high</td><td>include_with_tests</td><td>tests/test-survival-coxph.R</td><td class="ok">pass</td></tr>
+</table>
+
+<h2>附录 B · 完整性</h2>
 <p>本证据包所有文件的 SHA-256 记录于 <code>MANIFEST.sha256</code>。
 审计员可用 <code>avior verify</code>（或标准 <code>sha256sum -c</code>）独立校验，无需项目上下文。
 输入快照存于 <code>snapshot/</code>，为编译时点的策略、清单、评分、决策、测试结果副本。</p>

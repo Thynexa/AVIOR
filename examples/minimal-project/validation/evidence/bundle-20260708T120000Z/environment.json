@@ -8,5 +8,10 @@
   ],
   "lockfile": { "path": "renv.lock", "sha256": "ffb8b2add0b30e8625fe1632a5225319ad5f553875bde85200f8f2acb3777b2f" },
   "engine": { "id": "riskmetric", "version": "0.2.4" },
+  "locale": { "LC_COLLATE": "C" },
+  "blas": "reference BLAS (libRblas, bundled with R)",
+  "lapack": "LAPACK 3.11.0 (libRlapack, bundled with R)",
+  "container": null,
+  "session_info": "session-info.txt",
   "package_count": { "total": 5, "in_scope_assessed": 4, "recommended_exempt": 0, "force_included": 1, "transitive": 1 }
 }

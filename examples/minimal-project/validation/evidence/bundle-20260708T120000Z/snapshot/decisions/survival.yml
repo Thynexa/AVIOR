@@ -16,3 +16,5 @@ reviewed_by: "jin@example.com"
 date: "2026-07-08"
 ai_assisted: false
 confirmed_by: null
+assessment_type: initial          # initial | delta；V1 固定 initial（PRD §6.3）
+supersedes: null                  # V2 变更影响评估引用；V1 恒为 null
