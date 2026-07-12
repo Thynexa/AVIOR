@@ -23,6 +23,22 @@ emit_json <- function(x) {
   cat(jsonlite::toJSON(x, auto_unbox = TRUE, null = "null", pretty = 2), "\n", sep = "")
 }
 
+# I() keeps a field a JSON array regardless of length: with auto_unbox a bare
+# length-1 vector becomes a scalar, so a collection field would change type
+# by element count (a machine consumer can't parse it stably). Scalars
+# (command/status/...) stay unboxed.
+json_array <- function(x) I(as.character(x))
+
+# Unknown/leftover arguments must not be silently ignored — a user believing
+# `avior scan --deep` took effect is a trust defect. Commands consume their
+# own flags; anything left is an execution error (exit 2).
+reject_extra_args <- function(args, command) {
+  if (length(args) > 0) {
+    avior_abort(paste0(command, ": unexpected argument(s): ",
+                       paste(args, collapse = " ")))
+  }
+}
+
 run_command <- function(opts) {
   if (is.na(opts$command)) {
     avior_abort("no command given (expected: init|scan)")
@@ -30,11 +46,13 @@ run_command <- function(opts) {
   switch(
     opts$command,
     init = {
+      reject_extra_args(opts$args, "init")
       res <- avior_init(".")
       list(command = "init", status = "ok",
-           created = res$created, skipped = res$skipped)
+           created = json_array(res$created), skipped = json_array(res$skipped))
     },
     scan = {
+      reject_extra_args(opts$args, "scan")
       inv <- avior_scan(".")
       incomplete <- isFALSE(inv$scan$complete)
       list(command = "scan",
@@ -43,11 +61,11 @@ run_command <- function(opts) {
            status = if (incomplete) "incomplete" else "ok",
            lockfile = inv$lockfile,
            summary = unclass(inv$summary),
-           skipped_files = if (incomplete) {
-             as.character(unlist(inv$scan$skipped_files))
+           skipped_files = json_array(if (incomplete) {
+             unlist(inv$scan$skipped_files)
            } else {
              character(0)
-           })
+           }))
     },
     avior_abort(paste0("unknown command: ", opts$command, " (expected: init|scan)"))
   )
