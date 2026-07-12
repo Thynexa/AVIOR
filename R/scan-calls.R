@@ -66,7 +66,19 @@ scan_file_calls <- function(path, rel) {
     term <- pd[pd$parent == target, , drop = FALSE]
     tok <- term[term$token %in% c("STR_CONST", "SYMBOL"), , drop = FALSE]
     if (nrow(tok) != 1) next
-    if (tok$token == "SYMBOL" && "character.only" %in% named) next
+    # A bare symbol is a static package name unless character.only forces the
+    # symbol to be read as a variable. Only skip when character.only is TRUE
+    # or a non-literal we cannot resolve; `character.only = FALSE` (or absent)
+    # keeps the bare name — library(pkg, character.only = FALSE) is static.
+    if (tok$token == "SYMBOL") {
+      co_idx <- match("character.only", named)
+      if (!is.na(co_idx)) {
+        co_term <- pd[pd$parent == named_ids[co_idx], , drop = FALSE]
+        co_val <- co_term$text[co_term$token %in% c("NUM_CONST", "SYMBOL")]
+        literal_false <- length(co_val) == 1 && co_val %in% c("FALSE", "F")
+        if (!literal_false) next
+      }
+    }
     pkg <- tok$text
     if (tok$token == "STR_CONST") pkg <- gsub("^['\"]|['\"]$", "", pkg)
     if (!nzchar(pkg)) next

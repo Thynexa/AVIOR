@@ -83,9 +83,13 @@ avior_config_load <- function(root = ".") {
   if (is.null(user$avior)) {
     config_abort("avior.yml: missing schema version field `avior` (expected: avior: 1)")
   }
-  if (!identical(as.integer(user$avior), 1L)) {
-    config_abort(paste0("avior.yml: unsupported schema version `", user$avior,
-                        "` (this avior release reads schema 1)"))
+  # Exact version match (FR-X-6): as.integer() would truncate `1.5`/`1.9` and
+  # coerce `true` to 1L, silently accepting a future/invalid schema as v1.
+  ver <- user$avior
+  if (length(ver) != 1 || !is.numeric(ver) || is.na(ver) || ver != 1) {
+    config_abort(paste0("avior.yml: unsupported schema version `",
+                        paste(format(ver), collapse = ", "),
+                        "` (this avior release reads schema exactly 1)"))
   }
 
   cfg <- merge_config(config_defaults(), user)

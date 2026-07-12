@@ -178,34 +178,71 @@ write_yaml_canonical <- function(x, path, header = NULL) {
 
 # -- JSON writer --------------------------------------------------------------
 
-# jsonlite chooses decimal vs scientific notation on its own — `1e20` and
-# even `1234567.89` come out as `1e+20` / `1.235e+06` regardless of `digits`
-# — and it drops the trailing `.0` from whole-number doubles. Both violate
-# FR-X-8 (no scientific notation; score/weight keep >=1 fractional digit).
-# So format every double through avior_format_num (the single canonical
-# number formatter) and inject it as an UNQUOTED JSON number via a sentinel
-# that is stripped of its quotes after serialization. This is a controlled
-# number emitter, not a reliance on jsonlite's formatting.
-JSON_NUM_SENTINEL <- "@@AVIORNUM:"
+# Custom recursive JSON emitter. jsonlite cannot be trusted for the number
+# tokens: it chooses decimal vs scientific on its own (`1e20`->`1e+20`,
+# `1234567.89`->`1.235e+06`) and drops the FR-X-8-mandated trailing `.0` from
+# whole-number doubles — and a post-serialization text substitution can
+# corrupt any user string that happens to look like the substitution pattern.
+# So numbers are formatted directly through avior_format_num and structure is
+# built here; only per-scalar string ESCAPING is delegated to jsonlite (one
+# value at a time, so it can never touch another field). Result: no
+# scientific notation, `.0` preserved, and no string/number collision.
 
-json_num_tokens <- function(x) {
-  vapply(x, function(v) {
-    if (is.na(v)) NA_character_ else paste0(JSON_NUM_SENTINEL, avior_format_num(v), "@@")
-  }, character(1))
+# Escape a JSON string by hand: jsonlite mangles non-ASCII into literal
+# "<e4>"-style tokens under a C locale, the same reason the YAML emitter is
+# custom. UTF-8 bytes are preserved as-is (written via useBytes); only the
+# JSON-significant ASCII characters are escaped.
+JSON_ESCAPES <- c("\\" = "\\\\", '"' = '\\"', "\b" = "\\b", "\f" = "\\f",
+                  "\n" = "\\n", "\r" = "\\r", "\t" = "\\t")
+
+json_escape_string <- function(s) {
+  s <- to_utf8(s)
+  for (ch in names(JSON_ESCAPES)) s <- gsub(ch, JSON_ESCAPES[[ch]], s, fixed = TRUE)
+  # remaining C0 control chars (rare in validation data) -> \u00XX
+  if (grepl("[\001-\037]", s, useBytes = TRUE)) {
+    for (cc in c(1:7, 11L, 14:31)) {
+      s <- gsub(rawToChar(as.raw(cc)), sprintf("\\u%04x", cc), s,
+                fixed = TRUE, useBytes = TRUE)
+    }
+  }
+  paste0('"', s, '"')
 }
 
-json_canonicalize <- function(x) {
-  if (is.list(x)) return(lapply(x, json_canonicalize))
-  if (is.double(x)) return(json_num_tokens(x))
-  x
+json_scalar <- function(v) {
+  if (is.null(v)) return("null")
+  if (length(v) == 0) return("[]")
+  if (is.logical(v)) return(if (is.na(v)) "null" else if (v) "true" else "false")
+  if (is.integer(v)) return(if (is.na(v)) "null" else as.character(v))
+  if (is.numeric(v)) {
+    s <- avior_format_num(v)
+    return(if (is.na(s)) "null" else s)
+  }
+  if (is.na(v)) return("null")
+  json_escape_string(v)
+}
+
+json_emit <- function(x, indent = 0) {
+  pad <- strrep("  ", indent)
+  pad1 <- strrep("  ", indent + 1)
+  if (is.null(x)) return("null")
+  if (is.list(x)) {
+    if (length(x) == 0) return("[]")
+    if (!is.null(names(x)) && all(nzchar(names(x)))) {          # object
+      items <- vapply(seq_along(x), function(i) {
+        paste0(pad1, json_escape_string(names(x)[i]), ": ", json_emit(x[[i]], indent + 1))
+      }, character(1))
+      return(paste0("{\n", paste(items, collapse = ",\n"), "\n", pad, "}"))
+    }
+    items <- vapply(x, function(v) paste0(pad1, json_emit(v, indent + 1)), character(1))  # array
+    return(paste0("[\n", paste(items, collapse = ",\n"), "\n", pad, "]"))
+  }
+  if (length(x) <= 1) return(json_scalar(x))
+  items <- vapply(x, json_scalar, character(1))                 # atomic vector -> array
+  paste0("[\n", paste0(pad1, items, collapse = ",\n"), "\n", pad, "]")
 }
 
 write_json_canonical <- function(x, path) {
-  txt <- as.character(jsonlite::toJSON(json_canonicalize(x), pretty = 2,
-                                       auto_unbox = TRUE, null = "null", na = "null"))
-  # unquote the sentinel-wrapped canonical decimals: "@@AVIORNUM:1.0@@" -> 1.0
-  txt <- gsub('"@@AVIORNUM:(-?[0-9]+\\.[0-9]+)@@"', "\\1", txt)
-  write_lines_lf(txt, path)
+  write_lines_lf(json_emit(x, 0), path)
 }
 
 # -- CSV writer ---------------------------------------------------------------

@@ -78,6 +78,13 @@ avior_scan <- function(root = ".") {
     isTRUE(e$overridden) && identical(e$override_source, "avior.yml scope.include"),
     logical(1))
 
+  # Files that could not be parsed are a SCOPE GAP: a package referenced only
+  # there is silently missed. Persist that into the git-tracked inventory (a
+  # transient console warning is not auditable) so `check` can gate on it
+  # (FR-SCAN-3). Recorded in C-locale path order for determinism.
+  skipped <- attr(direct, "skipped")
+  skipped <- if (length(skipped) > 0) sort_c(skipped) else character(0)
+
   inventory <- list(
     avior = 1L,
     generated_by = "avior scan",
@@ -92,6 +99,12 @@ avior_scan <- function(root = ".") {
       force_included = sum(forced)
     ))
   )
+
+  # Only present when the scan could NOT read everything: absence means a
+  # complete scan, so a clean project's inventory stays byte-identical.
+  if (length(skipped) > 0) {
+    inventory$scan <- list(complete = FALSE, skipped_files = yaml_seq(skipped))
+  }
 
   out <- file.path(cfg$paths$validation, "inventory.yml")
   write_yaml_canonical(inventory, out)
