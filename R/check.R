@@ -163,6 +163,17 @@ avior_check <- function(root = ".") {
   }
   inventory <- read_yaml_file(inv_path)
 
+  # An incomplete scan (unparseable source files) is a scope gap: a package
+  # referenced only there was missed. Gate on it (FR-SCAN-3 / PR #18 review).
+  if (isFALSE(inventory$scan$complete)) {
+    skipped <- unlist(inventory$scan$skipped_files)
+    findings <- c(findings, list(finding(
+      "-", "scan_incomplete",
+      paste0("scan could not parse: ", paste(skipped, collapse = ", "),
+             " (packages referenced only there are missing from scope)"),
+      fix = "fix the parse error(s) and re-run `avior scan`, or remove the file from scope")))
+  }
+
   findings <- c(findings, check_drift(cfg, inventory))
 
   scores_available <- file.exists(file.path(cfg$paths$validation, "scores.yml"))

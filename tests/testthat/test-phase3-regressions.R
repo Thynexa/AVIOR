@@ -169,6 +169,22 @@ test_that("P10: recorded score and tier can never contradict", {
   expect_identical(s$packages$jsonlite$tier, "low")
 })
 
+test_that("P-scan: an incomplete scan turns the check gate red", {
+  root <- local_example_project()
+  # a broken source file makes scan record scan.complete = FALSE
+  writeLines("minqa::foo(", file.path(root, "analysis", "broken.R"))
+  suppressWarnings(avior_scan(root))
+  avior_assess(root, engine = p3_engine(), deep = TRUE)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  types <- vapply(res$findings, function(x) x$type, character(1))
+  expect_true("scan_incomplete" %in% types)
+  # and the clean fixture (complete scan) does not raise it
+  clean <- local_example_project()
+  expect_false("scan_incomplete" %in%
+    vapply(avior_check(clean)$findings, function(x) x$type, character(1)))
+})
+
 test_that("P15: --offline is recorded in the run disclosure", {
   root <- local_example_project()
   old <- setwd(root); on.exit(setwd(old), add = TRUE)
