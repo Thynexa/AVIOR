@@ -6,7 +6,7 @@
 | 产品名 | **AVIOR** — Automated Validation and Inspection for Operational R-packages |
 | 命名来源 | 船底座 ε（Avior），神话中阿尔戈号的龙骨 —— 验证体系的龙骨 |
 | CLI / R 包名 | `avior` |
-| 文档版本 | v1.1（开发基线；本文件取代《ValiR PRD》v0.1（`docs/ValiR-PRD.md`），后者保留作历史参考） |
+| 文档版本 | v1.6（开发基线；本文件取代《ValiR PRD》v0.1（`docs/ValiR-PRD.md`），后者保留作历史参考） |
 | 文档状态 | 定稿。后续变更通过 PR 修订本文件，重大范围变更须先对照 §2 设计公理 |
 | 编制日期 | 2026-07-08 |
 | 依据 | 《R 包验证策略对比分析与实施方案》《评审意见与聚焦规划》 |
@@ -126,9 +126,10 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | FR-X-2 | 所有命令支持 `--format json` 输出机器可读结果（供 CI 注解与二次加工） | P0 |
 | FR-X-3 | 退出码约定：`0` 成功/通过；`1` 校验不通过（业务性失败）；`2` 执行错误（环境/配置问题） | P0 |
 | FR-X-4 | 评估引擎经适配层接入（见 §7.2）；V1 实现 riskmetric 适配器；引擎 id 与版本记入一切评分产物 | P0 |
-| FR-X-5 | 评分缓存：以「包名+版本+引擎 id+引擎版本+指标集」为键，缓存于项目 `validation/.cache/`（gitignore）；重跑只算变更项 | P0 |
+| FR-X-5 | 评分缓存：以「包名+版本+引擎 id+引擎版本+指标集」为键，缓存于项目 `validation/.cache/`（gitignore）；重跑只算变更项。缓存条目记录 `na_metrics`——命中项含非空 `na_metrics` 且当前网络可用时视为**可改进命中**，默认重评（可配置） | P0 |
 | FR-X-6 | 配置与产物 schema 带版本号（`avior: 1`）；schema 演进保持向后可读——旧证据包永不失效 | P0 |
 | FR-X-7 | **确定性排序**：一切生成物中的包序为**包名字母序**（C locale 字节序，大小写敏感——大写整体排在小写之前，如 `Matrix` 排在 `jsonlite` **之前**（`0x4D` < `0x6A`）；勿用大小写不敏感或 locale-aware 排序），覆盖 `inventory.yml`、`scores.yml`、`traceability.csv` 与报告逐包明细；`test-results.yml` 按测试文件路径排序；`MANIFEST.sha256` 按相对路径排序（§6.4）。这是「重复执行输出字节一致」（各命令 AC）的前提 | P0 |
+| FR-X-8 | **规范化序列化**：一切生成物 UTF-8 无 BOM、LF 换行（全平台一致）；数值一律十进制小数（禁科学计数法），银行家舍入至最多 4 位小数、去尾零但 score/weight 至少保留 1 位小数（`1`→`1.0`、`0.6100000000000001`→`0.61`）；时间戳统一 UTC ISO-8601 秒级（`YYYY-MM-DDTHH:MM:SSZ`）；YAML 生成物为 block 风格、2 空格缩进、键序按 schema 定义、仅必要时加引号；CSV 字段仅在含 ASCII 逗号、双引号或换行时加引号。FR-X-7 + FR-X-8 共同构成字节一致 AC（NFR-1）的前提 | P0 |
 
 ### 5.1 `avior init` —— 脚手架
 
@@ -160,7 +161,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | --- | --- | --- |
 | FR-ASSESS-1 | 对 inventory 中在验证范围内（`in_scope: true`）的包——默认为 `contributed`/`custom`，也含经 `scope.include` 强制纳入的 `base`/`recommended` 包——经适配层批量评分，按策略权重聚合为 0–1 风险分，写入 `validation/scores.yml`（纳入 git） | P0 |
 | FR-ASSESS-2 | 按 `policy.risk_tiers` 阈值给出风险档（low/medium/high） | P0 |
-| FR-ASSESS-3 | 指标缺失（如离线导致下载量不可得）记为 `NA` 并列入 `na_metrics`，聚合时按策略声明的处理方式（`na_action: reweight\|zero\|fail`）处理；NA 情况必须在报告中可见 | P0 |
+| FR-ASSESS-3 | 指标缺失（如离线导致下载量不可得）记为 `NA` 并列入 `na_metrics`，聚合时按策略声明的处理方式（`na_action: reweight\|zero\|fail`）处理；NA 情况必须可见：`scores.yml` 逐包记录 `na_metrics`（为空省略）+ 顶层聚合，报告逐包展示生效（重归一后）权重 | P0 |
 | FR-ASSESS-4 | 支持离线评估：优先从本地已安装包/本地元数据评估；需要网络的指标在离线时走 FR-ASSESS-3 路径，不阻断整体评分 | P0 |
 | FR-ASSESS-5 | `--only <pkg>` 增量重评单包 | P1 |
 
@@ -183,7 +184,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
 | FR-TEST-1 | 运行 `validation/tests/` 下的 testthat 文件；测试与包的映射经文件头部注释声明（`# avior-package: <pkg>`） | P0 |
-| FR-TEST-2 | 结果（通过/失败/跳过、耗时、testthat 版本）写入 `validation/test-results.yml`，供 bundle 采集；结果带被测包版本，版本不符即视为过期 | P0 |
+| FR-TEST-2 | 结果（通过/失败/跳过、耗时、testthat 版本）写入 `validation/test-results.yml`，供 bundle 采集；结果与运行环境绑定：记录被测包版本 + 运行时 `renv.lock` SHA-256 + R 版本/平台；被测包版本不符**或 lockfile 哈希与当前 inventory 基准不符**均视为过期 | P0 |
 | FR-TEST-3 | 采集 covr 覆盖率作为参考指标（不作为门禁阈值——覆盖率高≠关键函数被测到，遵循参考文件的告诫） | P1 |
 
 **AC**：`include_with_tests` 的包若测试失败或结果过期，`check` 必红。
@@ -192,11 +193,11 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
-| FR-BUNDLE-1 | 产出不可变证据包目录 `validation/evidence/bundle-<UTC 时间戳>/` 及同名 zip；已存在的 bundle 永不覆盖 | P0 |
-| FR-BUNDLE-2 | 内容物：验证报告（HTML + docx，PDF 可选）、`traceability.csv` 追溯矩阵、`environment.json` 环境指纹、策略/清单/评分/决策/测试结果的快照副本、`BUNDLE.yml` 元数据、`MANIFEST.sha256` | P0 |
-| FR-BUNDLE-3 | 报告结构对齐 GAMP 5 叙事：方法论引用（四准则）→ 范围与分类 → 评分与阈值 → 决策汇总 → 测试证据 → 环境与可复现性 → 附录（逐包明细）；模板字符串外置，V1 提供中文，V1.1 补英文 | P0 |
+| FR-BUNDLE-1 | 产出不可变证据包目录 `validation/evidence/bundle-<UTC 时间戳>/`；已存在的 bundle 永不覆盖。zip 为**传输件而非归档件**：仅 `--zip` 时生成且默认 gitignore（目录 + manifest 是归档形态，zip 可经 `SOURCE_DATE_EPOCH` 确定性重建）。留存口径：git 历史即归档，工作区可按需裁剪旧 bundle | P0 |
+| FR-BUNDLE-2 | 内容物：验证报告（HTML + docx，PDF 可选）、`traceability.csv` 追溯矩阵、`environment.json` 环境指纹、`session-info.txt` 会话指纹、策略/清单/评分/决策/测试结果的快照副本、`BUNDLE.yml` 元数据、`MANIFEST.sha256` | P0 |
+| FR-BUNDLE-3 | 报告结构对齐 GAMP 5 叙事：方法论引用（四准则）→ **范围与边界声明** → 范围与分类 → 评分与阈值 → 决策汇总 → 测试证据 → 环境与可复现性 → 附录（逐包明细）；模板字符串外置，V1 提供中文，V1.1 补英文。「范围与边界声明」为固定章节，明确本证据包**不覆盖**：计算环境 IQ/OQ/PQ（申办方 IT 在其 QMS 下的责任，GAMP 5 管辖）、项目分析代码的 QC/双重编程（§1.4 边界）、Part 11 控制（宿主系统责任）；`base`/`recommended` 默认豁免须引用 R Foundation《R: Regulatory Compliance and Validation Issues》（R-FDA.pdf）作为出处 | P0 |
 | FR-BUNDLE-4 | 追溯矩阵列定义见 §6.5；每行打通「包 → 分类 → 评分 → 决策 → 测试 → 结果」 | P0 |
-| FR-BUNDLE-5 | 环境指纹：R 版本、OS/平台、仓库 URL（含 PPM 快照 ID 如有）、`renv.lock` SHA-256、avior 与引擎版本 | P0 |
+| FR-BUNDLE-5 | 环境指纹：R 版本、OS/平台、仓库 URL（含 PPM 快照 ID 如有）、`renv.lock` SHA-256、avior 与引擎版本、locale（至少 `LC_COLLATE`）、BLAS/LAPACK 实现与版本（经 `sessionInfo()` 采集；不可得记 `"unknown"`，键不可省略）、容器镜像摘要（可检测时记录，否则 `null`）；完整 `sessionInfo()` 文本随 bundle 存为 `session-info.txt` | P0 |
 | FR-BUNDLE-6 | bundle 前置校验：等价于 `check` 通过才允许编译（`--force` 可越过，但报告首页醒目标注「完整性校验未通过」） | P0 |
 | FR-BUNDLE-7 | 证据包内含静态 HTML 风险总览页（纯文件，无服务） | P1 |
 | FR-BUNDLE-8 | 支持 `SOURCE_DATE_EPOCH` 注入时间戳，便于确定性重建 | P1 |
@@ -208,7 +209,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
 | FR-CHECK-1 | 漂移检测：当前 `renv.lock` 哈希 vs inventory 基准；新增/移除/版本变更逐包列出 | P0 |
-| FR-CHECK-2 | 完整性检测：聚合 FR-REVIEW-3 全部校验 + 策略文件合法性（含 rationale TODO 检查）+ 测试结果时效 | P0 |
+| FR-CHECK-2 | 完整性检测：聚合 FR-REVIEW-3 全部校验 + 策略文件合法性（含 rationale TODO 检查、weights 引用已注册指标）+ 测试结果时效（含 FR-TEST-2 环境绑定校验）+ `excluded_but_present`：决策为 `exclude` 的包仍在 lockfile 中即红（修复建议：从项目移除该依赖，或修订决策并说明） | P0 |
 | FR-CHECK-3 | 输出：人类可读摘要（按包分组、给出修复命令建议）+ `--format json`；退出码遵循 FR-X-3 | P0 |
 | FR-CHECK-4 | 性能：50 包项目全量 check ≤ 30 秒（不触发重新评分，只做一致性校验） | P0 |
 
@@ -277,7 +278,7 @@ policy:
     has_vignettes: 0.5
     has_news: 0.5
     downloads_1yr: 1.0
-    covr_coverage: 2.0
+    covr_coverage: 2.0                # execution 档指标：默认不批量运行，须 --deep 显式开启（§7.2）
   risk_tiers: { low_max: 0.25, high_min: 0.55 }
   na_action: reweight                 # reweight | zero | fail
   rationale: >                        # 必填；留 TODO 则 check 不通过
@@ -317,6 +318,8 @@ reviewed_by: "jin@example.com"
 date: "2026-07-11"
 ai_assisted: false                    # true 时 confirmed_by 必填
 confirmed_by: null
+assessment_type: initial              # initial | delta；V1 固定 initial，V2 变更影响评估（J3）用 delta
+supersedes: null                      # V2：delta 评估所取代的先前决策引用；V1 恒为 null
 ```
 
 ### 6.4 证据包结构与 `MANIFEST.sha256`
@@ -326,6 +329,7 @@ bundle-20260715T093000Z/
 ├── report.html / report.docx
 ├── traceability.csv
 ├── environment.json
+├── session-info.txt           # sessionInfo() 全文（FR-BUNDLE-5）
 ├── snapshot/                  # 编译时点的输入快照
 │   ├── avior.yml
 │   ├── inventory.yml
@@ -343,6 +347,8 @@ bundle-20260715T093000Z/
 ——每行即一条完整证据链；QA 与审计员优先读这个文件。
 
 两列引用的分工：`decision_file` 指向决策记录**文件**（`decisions/<pkg>.yml`）；`use_statement_ref` 指向其中的**字段锚点**（`decisions/<pkg>.yml#use_statement`），供审计员直接定位用途声明，无决策文件的行（如 transitive）两列均留空。行序为包名字母序（FR-X-7）。
+
+`decision` 列的取值分两个命名空间：在范围内的行填 FR-REVIEW-2 决策枚举（`include`/`include_with_tests`/`exclude`）；`transitive` 行固定填行级状态值 **`version_managed`**（「仅版本管理，不深验」——intended-for-use 原则在追溯矩阵上的显式表达），它不属于决策枚举，不对应决策文件。
 
 ---
 
@@ -372,12 +378,13 @@ bundle-20260715T093000Z/
 avior_engine(
   id      = "riskmetric",
   version = utils::packageVersion("riskmetric"),
-  metrics = function() { ... },          # 返回指标注册表：id、描述、是否需网络
+  metrics = function() { ... },          # 返回指标注册表：id、描述、是否需网络、成本档（cost）
   assess  = function(pkg, version, opts) # 返回 tibble(metric_id, value, status)
 )
 ```
 
-- 策略 `weights` 引用指标 id；引用未注册指标 → `check` 报错。
+- 策略 `weights` 引用指标 id；引用未注册指标 → `check` 报错。指标注册表须可**静态获取**（不依赖引擎包已安装），`check` 据此离线校验 weights。
+- 注册表每条指标含成本档 `cost: metadata | network | execution`；`execution` 档指标（如 `covr_coverage`，需装包并跑测试套件）**默认不进入批量 `assess`**，须经 `--deep` 或按包显式开启——这是 §5.3 性能 AC 成立的前提。
 - 引擎 id + 版本写入 scores.yml 与每个 bundle。**切换引擎（riskmetric → val.meter）= 重新评分 + 决策刷新，走用户自己的变更控制** —— 工具保证新旧证据都可读、可对比，不承诺分数可比。
 
 ### 7.3 技术决策记录（ADR 摘要）
@@ -402,7 +409,7 @@ avior_engine(
 | NFR-2 | 离线 | 除「显式声明需网络的指标」外，全流程可在 air-gapped 环境运行；离线降级路径明确（FR-ASSESS-3/4） |
 | NFR-3 | 性能 | check ≤ 30s（50 包）；assess 冷 ≤ 30min / 热 ≤ 5min（50 包）；500 包批量给出并行选项，目标 ≤ 4h 冷启动 |
 | NFR-4 | 安全与隐私 | 默认零外发（评估元数据抓取除外，且可关）；AI 功能 opt-in + 端点可配 + 数据边界文档化（FR-DRAFT-3） |
-| NFR-5 | **自验证（dogfooding）** | AVIOR 仓库自身在 CI 中运行 avior 产出自己的证据包；AVIOR 在自身默认策略下必须落入低风险档（测试覆盖、文档、NEWS、bug 跟踪等指标齐备） |
+| NFR-5 | **自验证（dogfooding）** | 两个独立 CI 作业：**5a 管线自验**——AVIOR 仓库以 avior 跑自身开发依赖并产出证据包；**5b 自身画像**——以默认引擎与策略对 avior 包本身评分，必须落入低风险档（测试覆盖、文档、NEWS、bug 跟踪等指标齐备） |
 | NFR-6 | 平台 | Linux / macOS / Windows；CI 三平台全绿 |
 | NFR-7 | 兼容性 | schema 版本化；`avior` 遵循语义化版本；旧版本产出的证据包在新版本 `verify`/报告读取下永远可用 |
 | NFR-8 | 可用性 | 从零到第一份评分 ≤ 3 条命令（init → scan → assess）；每个红灯信息附修复命令建议 |
@@ -430,7 +437,7 @@ avior_engine(
 2. **合规有效性**：至少一份证据包通过一次真实的内部 QA 审查，审查意见回灌报告模板。
 3. **可重现**：同输入重跑，**数据产物**（追溯矩阵、环境指纹、各快照副本）字节级一致且与 manifest 相符；报告文件内嵌时间戳，其确定性重建需启用 `SOURCE_DATE_EPOCH`（FR-BUNDLE-8；与 NFR-1 同口径）。
 4. **持续性**：`avior check` 在 design partner CI 稳定运行 ≥ 4 周，依赖漂移零漏报。
-5. **北极星指标**：通过完整性校验的证据包生成数（工具可观测；「经签署归档数」发生在客户 QMS，工具不可见，不作为指标）。
+5. **北极星指标**：通过完整性校验的证据包生成数（工具可观测；「经签署归档数」发生在客户 QMS，工具不可见，不作为指标）。度量口径：试点期在 design partner 项目内统计；开源后以 GitHub 采纳信号（真实使用报告）为代理。**不引入 telemetry**（NFR-4 零外发）。
 
 ---
 
@@ -487,6 +494,7 @@ avior_engine(
 | v1.3 | 2026-07-10 | 落实评审后续项（issues #7/#8）：§10-#3 显式限定字节级可复现仅覆盖数据产物、报告需 `SOURCE_DATE_EPOCH`（与 NFR-1 对齐）；§6.5 明确 `use_statement_ref` 为字段锚点（`decisions/<pkg>.yml#use_statement`），与 `decision_file` 分工 |
 | v1.4 | 2026-07-10 | 落实 issue #11（NFR-6 可移植性）：根目录文档迁入 `docs/` 并 ASCII 化文件名（本文件原名 `AVIOR PRD.md`），内容无变更；索引见 `docs/README.md` |
 | v1.5 | 2026-07-10 | 落实 issue #15：新增 FR-X-7 确定性排序——生成物包序为包名字母序（C locale），`test-results.yml` 按测试文件路径、manifest 按相对路径；示例文件同步整理 |
+| v1.6 | 2026-07-12 | 落实《产品设计方向与路线评审》（`docs/product-design-review.md`）A/B/C 级处置：A1 新增 FR-X-8 规范化序列化；A2 §6.5 定义 transitive 行 `version_managed` 状态值；A3 FR-BUNDLE-2/5、§6.4 环境指纹扩展（locale/BLAS/容器摘要/`session-info.txt`）；A4 FR-TEST-2 测试结果环境绑定；A5 FR-BUNDLE-3 增「范围与边界声明」固定章节（含 R-FDA.pdf 豁免出处）；A6 FR-CHECK-2 增 `excluded_but_present` 红灯；B1 §7.2 指标成本档（`execution` 默认不批量、注册表可静态获取）；B2 FR-X-5/FR-ASSESS-3 缓存 NA 感知与生效权重披露；B3 FR-BUNDLE-1 zip 定义为传输件；B4 §6.3 预留 `assessment_type`/`supersedes`；B5 NFR-5 拆分 5a/5b；C1 §10-5 度量口径（无 telemetry）；文档版本号自 v1.1 起未随修订记录更新，本次一并对齐 |
 
 ---
 
