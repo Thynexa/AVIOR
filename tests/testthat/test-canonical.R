@@ -142,6 +142,29 @@ test_that("write_json_canonical: 2-space pretty, LF, trailing newline, determini
   expect_identical(back$n$total, 5L)
 })
 
+test_that("write_json_canonical never emits scientific notation (FR-X-8)", {
+  p <- tempfile(); on.exit(unlink(p), add = TRUE)
+  # jsonlite would render these as 1e+20 / 1.235e+06 / 1e-10 on its own
+  avior:::write_json_canonical(
+    list(big = 1e20, dur = 1234567.89, tiny = 1e-10, one = 1, score = 0.61,
+         neg = -0.25, boundary = 0.12345, count = 5L, none = NA_real_), p)
+  txt <- paste(readLines(p, encoding = "UTF-8"), collapse = "\n")
+  expect_false(grepl("[eE][+-]", txt))                    # no scientific anywhere
+  expect_true(grepl('"big": 100000000000000000000.0', txt, fixed = TRUE))
+  expect_true(grepl('"dur": 1234567.89', txt, fixed = TRUE))
+  expect_true(grepl('"tiny": 0.0', txt, fixed = TRUE))
+  expect_true(grepl('"one": 1.0', txt, fixed = TRUE))     # >=1 fractional digit kept
+  expect_true(grepl('"score": 0.61', txt, fixed = TRUE))
+  expect_true(grepl('"neg": -0.25', txt, fixed = TRUE))
+  expect_true(grepl('"boundary": 0.1235', txt, fixed = TRUE))  # round-half-even
+  expect_true(grepl('"count": 5', txt, fixed = TRUE))     # integer stays bare
+  expect_true(grepl('"none": null', txt, fixed = TRUE))
+  # the emitted numbers are real JSON numbers, not strings
+  back <- jsonlite::fromJSON(p, simplifyVector = TRUE)
+  expect_true(is.numeric(back$big))
+  expect_identical(back$one, 1)
+})
+
 # --- CSV writer -------------------------------------------------------------
 
 test_that("write_csv_canonical quotes only when needed (ASCII comma/quote/newline/non-ASCII)", {

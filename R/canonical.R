@@ -178,19 +178,34 @@ write_yaml_canonical <- function(x, path, header = NULL) {
 
 # -- JSON writer --------------------------------------------------------------
 
-# Round doubles to 4 decimals up front: jsonlite keeps very small magnitudes
-# in scientific notation regardless of the digits argument (1e-10 -> "1e-10"),
-# which FR-X-8 forbids; after round(v, 4) such values are exactly 0.
+# jsonlite chooses decimal vs scientific notation on its own — `1e20` and
+# even `1234567.89` come out as `1e+20` / `1.235e+06` regardless of `digits`
+# — and it drops the trailing `.0` from whole-number doubles. Both violate
+# FR-X-8 (no scientific notation; score/weight keep >=1 fractional digit).
+# So format every double through avior_format_num (the single canonical
+# number formatter) and inject it as an UNQUOTED JSON number via a sentinel
+# that is stripped of its quotes after serialization. This is a controlled
+# number emitter, not a reliance on jsonlite's formatting.
+JSON_NUM_SENTINEL <- "@@AVIORNUM:"
+
+json_num_tokens <- function(x) {
+  vapply(x, function(v) {
+    if (is.na(v)) NA_character_ else paste0(JSON_NUM_SENTINEL, avior_format_num(v), "@@")
+  }, character(1))
+}
+
 json_canonicalize <- function(x) {
   if (is.list(x)) return(lapply(x, json_canonicalize))
-  if (is.double(x)) return(round(x, 4))
+  if (is.double(x)) return(json_num_tokens(x))
   x
 }
 
 write_json_canonical <- function(x, path) {
-  txt <- jsonlite::toJSON(json_canonicalize(x), pretty = 2, auto_unbox = TRUE,
-                          null = "null", na = "null", digits = I(4))
-  write_lines_lf(as.character(txt), path)
+  txt <- as.character(jsonlite::toJSON(json_canonicalize(x), pretty = 2,
+                                       auto_unbox = TRUE, null = "null", na = "null"))
+  # unquote the sentinel-wrapped canonical decimals: "@@AVIORNUM:1.0@@" -> 1.0
+  txt <- gsub('"@@AVIORNUM:(-?[0-9]+\\.[0-9]+)@@"', "\\1", txt)
+  write_lines_lf(txt, path)
 }
 
 # -- CSV writer ---------------------------------------------------------------
