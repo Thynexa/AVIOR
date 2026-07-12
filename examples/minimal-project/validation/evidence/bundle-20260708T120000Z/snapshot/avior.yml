@@ -15,13 +15,14 @@ policy:
     has_news: 0.5
     has_bug_reports_url: 0.5
     downloads_1yr: 1.0
-    covr_coverage: 2.0          # 统计计算项目，覆盖率权重加大
+    covr_coverage: 2.0          # execution 档：显式选入，随 --deep 运行（PRD §7.2）
     last_30_bugs_status: 1.0
   risk_tiers: { low_max: 0.25, high_min: 0.55 }
   na_action: reweight
   rationale: >
     阈值参考 pharmaR/riskassessment 默认配置，经统计编程组 2026-07 评审会确认。
-    covr_coverage 加权 2.0，因本项目以统计建模为主，测试覆盖是关键信号。
+    covr_coverage 加权 2.0，因本项目以统计建模为主，测试覆盖是关键信号
+    （execution 档指标，组织显式选入并接受 --deep 深评成本）。
 depth_by_risk:
   low: metadata_only
   medium: use_statement_required

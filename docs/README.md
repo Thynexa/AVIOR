@@ -10,5 +10,6 @@
 | [`ValiR-PRD.md`](ValiR-PRD.md) | 《ValiR PRD》v0.1 | 历史参考（已被 `PRD.md` 取代） |
 | [`r-package-validation-strategy.md`](r-package-validation-strategy.md) | 《R 包验证策略分析与实施方案》 | 参考文件 |
 | [`r-regulatory-submission-research.md`](r-regulatory-submission-research.md) | 《R 语言合规递交调研与实施方案》 | 调研资料 |
+| [`superpowers/plans/`](superpowers/plans/) | 实施计划（M0 契约修订、M1 核心管线） | 工作文档（随 PR 演进） |
 
 示例项目见 [`../examples/minimal-project/`](../examples/minimal-project/)。

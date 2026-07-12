@@ -126,16 +126,16 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | FR-X-2 | 所有命令支持 `--format json` 输出机器可读结果（供 CI 注解与二次加工） | P0 |
 | FR-X-3 | 退出码约定：`0` 成功/通过；`1` 校验不通过（业务性失败）；`2` 执行错误（环境/配置问题） | P0 |
 | FR-X-4 | 评估引擎经适配层接入（见 §7.2）；V1 实现 riskmetric 适配器；引擎 id 与版本记入一切评分产物 | P0 |
-| FR-X-5 | 评分缓存：以「包名+版本+引擎 id+引擎版本+指标集」为键，缓存于项目 `validation/.cache/`（gitignore）；重跑只算变更项。缓存条目记录 `na_metrics`——命中项含非空 `na_metrics` 且当前网络可用时视为**可改进命中**，默认重评（可配置） | P0 |
+| FR-X-5 | 评分缓存：以「包名+版本+引擎 id+引擎版本+指标集」为键，缓存于项目 `validation/.cache/`（gitignore）；重跑只算变更项。缓存条目记录 `na_metrics` **及其成因（`network`/`execution`）**：命中项含 network 成因 NA 且当前网络可用时视为**可改进命中**，默认重评（可配置）；execution 成因 NA（指标未随 `--deep` 运行）**不触发**自动重评，仅由 `--deep` 解决——否则默认策略下每次联网命中都会被误判为可改进 | P0 |
 | FR-X-6 | 配置与产物 schema 带版本号（`avior: 1`）；schema 演进保持向后可读——旧证据包永不失效 | P0 |
 | FR-X-7 | **确定性排序**：一切生成物中的包序为**包名字母序**（C locale 字节序，大小写敏感——大写整体排在小写之前，如 `Matrix` 排在 `jsonlite` **之前**（`0x4D` < `0x6A`）；勿用大小写不敏感或 locale-aware 排序），覆盖 `inventory.yml`、`scores.yml`、`traceability.csv` 与报告逐包明细；`test-results.yml` 按测试文件路径排序；`MANIFEST.sha256` 按相对路径排序（§6.4）。这是「重复执行输出字节一致」（各命令 AC）的前提 | P0 |
-| FR-X-8 | **规范化序列化**：一切生成物 UTF-8 无 BOM、LF 换行（全平台一致）；数值一律十进制小数（禁科学计数法），银行家舍入至最多 4 位小数、去尾零但 score/weight 至少保留 1 位小数（`1`→`1.0`、`0.6100000000000001`→`0.61`）；时间戳统一 UTC ISO-8601 秒级（`YYYY-MM-DDTHH:MM:SSZ`）；YAML 生成物为 block 风格、2 空格缩进、键序按 schema 定义、仅必要时加引号；CSV 字段仅在含 ASCII 逗号、双引号或换行时加引号。FR-X-7 + FR-X-8 共同构成字节一致 AC（NFR-1）的前提 | P0 |
+| FR-X-8 | **规范化序列化**：一切生成物 UTF-8 无 BOM、LF 换行（全平台一致）；数值一律十进制小数（禁科学计数法），银行家舍入至最多 4 位小数、去尾零但 score/weight 至少保留 1 位小数（`1`→`1.0`、`0.6100000000000001`→`0.61`）；时间戳统一 UTC ISO-8601 秒级（`YYYY-MM-DDTHH:MM:SSZ`）；YAML 生成物默认 block 风格、2 空格缩进、键序按 schema 定义、仅必要时加引号，**行内紧凑映射（flow map）仅在 §6 各产物示例指明处使用**（如 `risk_tiers`、inventory 包行、scores 的 `engine`/`metrics` 行），逐产物固定不混用；JSON 生成物 2 空格缩进、键序按 schema 定义、最小转义、文件末尾换行；CSV 字段仅在含 ASCII 逗号、双引号、换行或非 ASCII 字符时加引号。FR-X-7 + FR-X-8 共同构成字节一致 AC（NFR-1）的前提 | P0 |
 
 ### 5.1 `avior init` —— 脚手架
 
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
-| FR-INIT-1 | 生成 `validation/` 目录结构与 `avior.yml` 骨架：默认权重与阈值 + `rationale` 字段置 `TODO`；`check` 在 TODO 存在时不通过（强制组织写下阈值理由） | P0 |
+| FR-INIT-1 | 生成 `validation/` 目录结构与 `avior.yml` 骨架：默认权重与阈值（默认权重仅含 metadata/network 档指标，见 §6.2 说明）+ `rationale` 字段置 `TODO`；`check` 在 TODO 存在时不通过（强制组织写下阈值理由） | P0 |
 | FR-INIT-2 | 幂等：已存在的文件不覆盖，输出差异提示 | P0 |
 | FR-INIT-3 | `--ci github\|gitlab` 生成对应 CI 工作流文件（在 PR 上跑 `avior check`） | P1 |
 
@@ -159,13 +159,13 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 
 | 编号 | 需求 | 优先级 |
 | --- | --- | --- |
-| FR-ASSESS-1 | 对 inventory 中在验证范围内（`in_scope: true`）的包——默认为 `contributed`/`custom`，也含经 `scope.include` 强制纳入的 `base`/`recommended` 包——经适配层批量评分，按策略权重聚合为 0–1 风险分，写入 `validation/scores.yml`（纳入 git） | P0 |
+| FR-ASSESS-1 | 对 inventory 中在验证范围内（`in_scope: true`）的包——默认为 `contributed`/`custom`，也含经 `scope.include` 强制纳入的 `base`/`recommended` 包——经适配层批量评分，按策略权重聚合为 0–1 风险分，写入 `validation/scores.yml`（纳入 git）；`scores.yml` 记录本次运行模式 `run: { deep, network }`，审计员据此判断 execution 档指标是否实际运行 | P0 |
 | FR-ASSESS-2 | 按 `policy.risk_tiers` 阈值给出风险档（low/medium/high） | P0 |
-| FR-ASSESS-3 | 指标缺失（如离线导致下载量不可得）记为 `NA` 并列入 `na_metrics`，聚合时按策略声明的处理方式（`na_action: reweight\|zero\|fail`）处理；NA 情况必须可见：`scores.yml` 逐包记录 `na_metrics`（为空省略）+ 顶层聚合，报告逐包展示生效（重归一后）权重 | P0 |
+| FR-ASSESS-3 | 指标缺失（如离线导致下载量不可得）记为 `NA` 并列入 `na_metrics`，聚合时按策略声明的处理方式（`na_action: reweight\|zero\|fail`）处理；NA 情况必须可见：`scores.yml` 逐包记录 `na_metrics`（为空省略）+ 顶层聚合，报告在生效权重与策略权重不一致时（即 `na_metrics` 非空经 reweight）逐包展示生效权重 | P0 |
 | FR-ASSESS-4 | 支持离线评估：优先从本地已安装包/本地元数据评估；需要网络的指标在离线时走 FR-ASSESS-3 路径，不阻断整体评分 | P0 |
 | FR-ASSESS-5 | `--only <pkg>` 增量重评单包 | P1 |
 
-**AC**：50 包冷启动（含网络元数据）≤ 30 分钟，缓存命中重跑 ≤ 5 分钟（目标值，W3–6 以实测校准）；`scores.yml` 记录引擎 id/版本、评分时间、逐指标原始值。
+**AC**：50 包冷启动（含网络元数据，不含 execution 档指标）≤ 30 分钟，缓存命中重跑 ≤ 5 分钟（目标值，W3–6 以实测校准）；`scores.yml` 记录引擎 id/版本、评分时间、run 模式（deep / network 可用性）、逐指标原始值。
 
 ### 5.4 `avior review` —— 决策留痕
 
@@ -202,7 +202,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | FR-BUNDLE-7 | 证据包内含静态 HTML 风险总览页（纯文件，无服务） | P1 |
 | FR-BUNDLE-8 | 支持 `SOURCE_DATE_EPOCH` 注入时间戳，便于确定性重建 | P1 |
 
-**AC**：同一输入重跑 bundle，`traceability.csv`、`environment.json`、各快照副本字节一致（报告文件允许仅嵌入时间戳差异，FR-BUNDLE-8 启用时亦须一致）；zip 解压后 `avior verify` 通过。
+**AC**：同一输入重跑 bundle，`traceability.csv`、`environment.json`、各快照副本字节一致（报告文件允许仅嵌入时间戳差异，FR-BUNDLE-8 启用时亦须一致）；启用 `--zip` 时，zip 解压后 `avior verify` 通过（zip 的确定性重建依赖 FR-BUNDLE-8）。
 
 ### 5.7 `avior check` —— CI 门禁
 
@@ -278,12 +278,13 @@ policy:
     has_vignettes: 0.5
     has_news: 0.5
     downloads_1yr: 1.0
-    covr_coverage: 2.0                # execution 档指标：默认不批量运行，须 --deep 显式开启（§7.2）
+    covr_coverage: 2.0                # execution 档指标：本项目显式选入，随 --deep 运行（§7.2）
   risk_tiers: { low_max: 0.25, high_min: 0.55 }
   na_action: reweight                 # reweight | zero | fail
   rationale: >                        # 必填；留 TODO 则 check 不通过
     阈值参考 riskassessment 默认配置，经统计编程组 2026-07 评审会确认；
-    covr_coverage 加权 2.0 因本项目以统计计算为主。
+    covr_coverage 加权 2.0 因本项目以统计计算为主（execution 档，
+    组织显式选入并接受 --deep 深评成本）。
 depth_by_risk:                        # 风险档 → 要求
   low: metadata_only
   medium: use_statement_required
@@ -292,6 +293,8 @@ report:
   formats: [html, docx]
   language: zh
 ```
+
+> **init 默认模板与本例的区别**：上例为一个「显式选入 execution 档指标」的项目策略。`avior init` 生成的**默认权重仅含 metadata/network 档指标**（`has_vignettes: 0.5`、`has_news: 0.5`、`has_bug_reports_url: 0.5`、`downloads_1yr: 1.0`、`remote_checks: 1.0`、`last_30_bugs_status: 1.0`）——「测试」准则默认由 `remote_checks`（CRAN 机器检查结果，network 档）承担；`covr_coverage` 等 execution 档指标**不入默认权重**，须组织显式加入并接受 `--deep` 深评成本（如上例）。这保证默认策略下批量 assess 的性能 AC（§5.3）成立、且不产生恒非空的 `na_metrics`。
 
 ### 6.3 决策记录 `decisions/<pkg>.yml`
 
@@ -494,7 +497,7 @@ avior_engine(
 | v1.3 | 2026-07-10 | 落实评审后续项（issues #7/#8）：§10-#3 显式限定字节级可复现仅覆盖数据产物、报告需 `SOURCE_DATE_EPOCH`（与 NFR-1 对齐）；§6.5 明确 `use_statement_ref` 为字段锚点（`decisions/<pkg>.yml#use_statement`），与 `decision_file` 分工 |
 | v1.4 | 2026-07-10 | 落实 issue #11（NFR-6 可移植性）：根目录文档迁入 `docs/` 并 ASCII 化文件名（本文件原名 `AVIOR PRD.md`），内容无变更；索引见 `docs/README.md` |
 | v1.5 | 2026-07-10 | 落实 issue #15：新增 FR-X-7 确定性排序——生成物包序为包名字母序（C locale），`test-results.yml` 按测试文件路径、manifest 按相对路径；示例文件同步整理 |
-| v1.6 | 2026-07-12 | 落实《产品设计方向与路线评审》（`docs/product-design-review.md`）A/B/C 级处置：A1 新增 FR-X-8 规范化序列化；A2 §6.5 定义 transitive 行 `version_managed` 状态值；A3 FR-BUNDLE-2/5、§6.4 环境指纹扩展（locale/BLAS/容器摘要/`session-info.txt`）；A4 FR-TEST-2 测试结果环境绑定；A5 FR-BUNDLE-3 增「范围与边界声明」固定章节（含 R-FDA.pdf 豁免出处）；A6 FR-CHECK-2 增 `excluded_but_present` 红灯；B1 §7.2 指标成本档（`execution` 默认不批量、注册表可静态获取）；B2 FR-X-5/FR-ASSESS-3 缓存 NA 感知与生效权重披露；B3 FR-BUNDLE-1 zip 定义为传输件；B4 §6.3 预留 `assessment_type`/`supersedes`；B5 NFR-5 拆分 5a/5b；C1 §10-5 度量口径（无 telemetry）；文档版本号自 v1.1 起未随修订记录更新，本次一并对齐 |
+| v1.6 | 2026-07-12 | 落实《产品设计方向与路线评审》（`docs/product-design-review.md`）A/B/C 级处置：A1 新增 FR-X-8 规范化序列化；A2 §6.5 定义 transitive 行 `version_managed` 状态值；A3 FR-BUNDLE-2/5、§6.4 环境指纹扩展（locale/BLAS/容器摘要/`session-info.txt`）；A4 FR-TEST-2 测试结果环境绑定；A5 FR-BUNDLE-3 增「范围与边界声明」固定章节（含 R-FDA.pdf 豁免出处）；A6 FR-CHECK-2 增 `excluded_but_present` 红灯；B1 §7.2 指标成本档（`execution` 默认不批量、注册表可静态获取）；B2 FR-X-5/FR-ASSESS-3 缓存 NA 感知与生效权重披露；B3 FR-BUNDLE-1 zip 定义为传输件；B4 §6.3 预留 `assessment_type`/`supersedes`；B5 NFR-5 拆分 5a/5b；C1 §10-5 度量口径（无 telemetry）；文档版本号自 v1.1 起未随修订记录更新，本次一并对齐。评审子代理复核后修正：FR-X-5 区分 NA 成因（network/execution，防默认策略下重评循环）；§6.2 增 init 默认模板说明（默认权重仅 metadata/network 档，测试准则由 `remote_checks` 承担）；FR-ASSESS-1/AC 增 `run: { deep, network }` 运行模式披露；FR-X-8 细化 flow map 逐产物指明、JSON 风格、CSV 非 ASCII 加引号；§5.6 zip AC 条件化 |
 
 ---
 

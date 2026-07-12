@@ -71,7 +71,10 @@
 </table>
 
 <h2>4. 风险评分与阈值</h2>
-<p>阈值：low ≤ 0.25 &lt; medium &lt; 0.55 ≤ high。阈值来源见策略文件 <code>rationale</code> 字段（审计辩护依据）。</p>
+<p>阈值：low ≤ 0.25 &lt; medium &lt; 0.55 ≤ high。阈值来源见策略文件 <code>rationale</code> 字段（审计辩护依据）。
+本次评估为 <code>--deep</code> 运行（<code>run: { deep: true, network: true }</code>，见 scores.yml）：
+execution 档指标 <code>covr_coverage</code> 经策略显式选入并实际运行，无缺失指标（na_metrics 为空），
+生效权重与策略权重一致。</p>
 <table>
   <tr><th>包</th><th>风险分</th><th>档位</th><th>说明</th></tr>
   <tr><td>jsonlite</td><td>0.12</td><td class="low">low</td><td>成熟稳定，元数据信号良好</td></tr>
@@ -111,7 +114,18 @@
 </table>
 <p>凭 <code>environment.json</code> 的仓库快照、lockfile 指纹与 BLAS/locale 记录可完全复现本次评估的包环境（数值可复现性依赖 BLAS/LAPACK 层与 locale，故一并钉入指纹）。</p>
 
-<h2>附录 · 完整性</h2>
+<h2>附录 A · 逐包明细</h2>
+<p>机器可读版本见 <code>traceability.csv</code>（审计主入口，每行一条完整证据链）。</p>
+<table>
+  <tr><th>包</th><th>版本</th><th>分类</th><th>角色</th><th>风险分</th><th>档位</th><th>决策</th><th>测试</th><th>状态</th></tr>
+  <tr><td>jsonlite</td><td>1.8.8</td><td>contributed</td><td>direct</td><td>0.12</td><td class="low">low</td><td>include</td><td>—</td><td>—</td></tr>
+  <tr><td>lme4</td><td>1.1-35.1</td><td>contributed</td><td>direct</td><td>0.58</td><td class="high">high</td><td>include_with_tests</td><td>tests/test-lme4-fit.R</td><td class="ok">pass</td></tr>
+  <tr><td>minqa</td><td>1.2.6</td><td>contributed</td><td>transitive</td><td>—</td><td>—</td><td>version_managed</td><td>—</td><td>—</td></tr>
+  <tr><td>mvtnorm</td><td>1.2-4</td><td>contributed</td><td>direct</td><td>0.38</td><td class="medium">medium</td><td>include</td><td>—</td><td>—</td></tr>
+  <tr><td>survival</td><td>3.5-7</td><td>recommended</td><td>direct</td><td>0.61</td><td class="high">high</td><td>include_with_tests</td><td>tests/test-survival-coxph.R</td><td class="ok">pass</td></tr>
+</table>
+
+<h2>附录 B · 完整性</h2>
 <p>本证据包所有文件的 SHA-256 记录于 <code>MANIFEST.sha256</code>。
 审计员可用 <code>avior verify</code>（或标准 <code>sha256sum -c</code>）独立校验，无需项目上下文。
 输入快照存于 <code>snapshot/</code>，为编译时点的策略、清单、评分、决策、测试结果副本。</p>

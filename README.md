@@ -74,9 +74,10 @@ AVIOR/
 │   ├── design-review.md             # Review notes: platform → CLI-tool scope narrowing
 │   ├── product-design-review.md     # Design & roadmap review against the PRD baseline
 │   ├── r-regulatory-submission-research.md  # Methodology research
-│   └── r-package-validation-strategy.md     # Validation strategy analysis
+│   ├── r-package-validation-strategy.md     # Validation strategy analysis
+│   └── superpowers/plans/           # Implementation plans (working docs)
 ├── examples/
-│   └── minimal-project/            # M0 hand-assembled example bundle (4 packages, all key scenarios)
+│   └── minimal-project/            # M0 hand-assembled example bundle (5 packages, all key scenarios)
 ├── .claude/skills/  ·  .agents/skills/   # Vendored "superpowers" skills for AI-assisted development
 └── skills-lock.json
 ```
@@ -174,9 +175,10 @@ AVIOR/
 │   ├── design-review.md             # 从「平台」收敛到「CLI 工具」的评审决策
 │   ├── product-design-review.md     # 对照 PRD 基线的设计方向与路线评审
 │   ├── r-regulatory-submission-research.md  # 方法论调研
-│   └── r-package-validation-strategy.md     # R 包验证策略分析
+│   ├── r-package-validation-strategy.md     # R 包验证策略分析
+│   └── superpowers/plans/           # 实施计划（工作文档）
 ├── examples/
-│   └── minimal-project/            # M0 手工样例证据包（4 包，覆盖所有关键情形）
+│   └── minimal-project/            # M0 手工样例证据包（5 包，覆盖所有关键情形）
 ├── .claude/skills/  ·  .agents/skills/   # 供 AI 辅助开发的 superpowers 技能集
 └── skills-lock.json
 ```
