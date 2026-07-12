@@ -20,7 +20,6 @@ Imports:
     cli,
     digest,
     jsonlite,
-    tools,
     utils,
     yaml
 Suggests:
