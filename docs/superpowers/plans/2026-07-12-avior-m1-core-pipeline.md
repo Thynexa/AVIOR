@@ -38,7 +38,7 @@
 - `avior_format_num(x)` → character; decimal notation, round-half-even 4 fr. digits, trim trailing zeros, keep ≥1 fractional digit; `NA` → `NA_character_`.
 - `avior_timestamp(time = NULL)` → `"%Y-%m-%dT%H:%M:%SZ"` UTC; honors `SOURCE_DATE_EPOCH` when `time` is NULL.
 - `write_lines_lf(lines, path)` → UTF-8, LF only, trailing newline (opens `wb` connection).
-- `write_yaml_canonical(x, path, header = NULL)` → block style, 2-space indent, numeric handler routes through `avior_format_num` as verbatim; optional `# comment` header lines.
+- `write_yaml_canonical(x, path, header = NULL)` → block style, 2-space indent; **custom emitter** (NOT `yaml::as.yaml`, whose output varies by version and emits `yes/no` booleans): supports scalars (numeric via `avior_format_num`, logical as `true`/`false`, NULL as `null`), named maps, unnamed seqs of scalars/maps; strings unquoted only when matching `^[A-Za-z_][A-Za-z0-9._-]*$` and not a YAML reserved word (true/false/null/yes/no/on/off), else double-quoted with `\\` and `\"` escaping; `yaml::read_yaml` used for parsing only. Optional `# comment` header lines.
 - `write_json_canonical(x, path)` → jsonlite pretty 2-space, `auto_unbox`, LF, trailing newline.
 - `write_csv_canonical(df, path)` → header + rows; quote a field iff it contains `[",\n\r]`; doubles quoted quotes.
 - `sort_c(x)` / `order_c(...)` → radix (C-locale byte order).
