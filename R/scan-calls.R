@@ -74,8 +74,11 @@ scan_file_calls <- function(path, rel) {
       co_idx <- match("character.only", named)
       if (!is.na(co_idx)) {
         co_term <- pd[pd$parent == named_ids[co_idx], , drop = FALSE]
-        co_val <- co_term$text[co_term$token %in% c("NUM_CONST", "SYMBOL")]
-        literal_false <- length(co_val) == 1 && co_val %in% c("FALSE", "F")
+        # Only the reserved literal FALSE (a NUM_CONST) is a safe static false.
+        # `F`/`T` are ordinary rebindable variables (SYMBOL), so without data-
+        # flow analysis their value is not statically determinable -> skip.
+        co_lit <- co_term$text[co_term$token == "NUM_CONST"]
+        literal_false <- length(co_lit) == 1 && identical(co_lit, "FALSE")
         if (!literal_false) next
       }
     }

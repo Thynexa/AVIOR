@@ -9,7 +9,11 @@
 
 avior_format_num <- function(x) {
   vapply(as.numeric(x), function(v) {
-    if (is.na(v)) return(NA_character_)
+    # is.finite() rejects NA, NaN, Inf and -Inf together -> NA_character_,
+    # which every writer renders as null. JSON/YAML/CSV have no decimal form
+    # for non-finite values (avior_format_num(Inf) would be "Inf.0", i.e.
+    # invalid JSON), so they must never reach the serialized artifact.
+    if (!is.finite(v)) return(NA_character_)
     # digits = 15: format()'s default of 7 significant digits would corrupt
     # values with a large integer part (123456.7891 -> "123456.8")
     s <- format(round(v, 4), scientific = FALSE, trim = TRUE,
@@ -250,6 +254,7 @@ write_json_canonical <- function(x, path) {
 csv_field <- function(v) {
   if (length(v) != 1 || is.na(v)) return("")
   s <- if (is.numeric(v) && !is.integer(v)) avior_format_num(v) else to_utf8(v)
+  if (is.na(s)) return("")   # non-finite numeric (Inf/-Inf) -> empty field
   needs_quote <- grepl('[",\n\r]', s) || any(charToRaw(s) > as.raw(127L))
   if (needs_quote) {
     s <- gsub('"', '""', s, fixed = TRUE)

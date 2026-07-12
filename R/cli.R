@@ -36,9 +36,18 @@ run_command <- function(opts) {
     },
     scan = {
       inv <- avior_scan(".")
-      list(command = "scan", status = "ok",
+      incomplete <- isFALSE(inv$scan$complete)
+      list(command = "scan",
+           # an incomplete scan is a business failure here and now, not a
+           # property deferred to `check` in a later PR (FR-SCAN-3)
+           status = if (incomplete) "incomplete" else "ok",
            lockfile = inv$lockfile,
-           summary = unclass(inv$summary))
+           summary = unclass(inv$summary),
+           skipped_files = if (incomplete) {
+             as.character(unlist(inv$scan$skipped_files))
+           } else {
+             character(0)
+           })
     },
     assess = {
       deep <- "--deep" %in% opts$args
@@ -119,44 +128,54 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
     return(invisible(code))
   }
 
-  exit_code <- if (identical(result$command, "check") &&
-                   identical(result$status, "fail")) 1L else 0L
+  # business failures (check fail, incomplete scan) -> exit 1; review reports
+  # findings but does not gate, so its "findings" status stays exit 0
+  exit_code <- if (identical(result$status, "fail") ||
+                   identical(result$status, "incomplete")) 1L else 0L
 
   if (identical(opts$format, "json")) {
     emit_json(result)
     return(invisible(exit_code))
-  } else {
-    if (identical(result$command, "check")) {
-      if (identical(result$status, "pass")) {
-        cli::cli_alert_success("check: all gates green")
-      } else {
-        cli::cli_alert_danger(paste0("check: ", length(result$findings),
-                                     " finding(s)"))
-        print_findings(result$findings)
-      }
-    } else if (identical(result$command, "assess")) {
-      cli::cli_alert_success(paste0(
-        "assess: ", result$packages, " package(s) scored with ",
-        result$engine$id, " ", result$engine$version,
-        if (length(result$na_metrics) > 0)
-          paste0(" (NA metrics: ", paste(result$na_metrics, collapse = ", "), ")")
-        else ""))
-    } else if (identical(result$command, "review")) {
-      cli::cli_alert_success(paste0(
-        "review: ", length(result$stubs_created), " stub(s) created, ",
-        length(result$findings), " finding(s)"))
-      if (length(result$findings) > 0) print_findings(result$findings)
-    } else if (identical(result$command, "scan")) {
-      s <- result$summary
-      cli::cli_alert_success(paste0(
-        "scan: ", s$total, " packages (", s$direct, " direct, ",
-        s$transitive, " transitive); ", s$in_scope_assessed, " in scope, ",
-        s$recommended_exempt, " exempt, ", s$force_included, " force-included"))
-    } else if (identical(result$command, "init")) {
-      cli::cli_alert_success(paste0(
-        "init: ", length(result$created), " created, ",
-        length(result$skipped), " already present (kept)"))
+  }
+
+  if (identical(result$command, "check")) {
+    if (identical(result$status, "pass")) {
+      cli::cli_alert_success("check: all gates green")
+    } else {
+      cli::cli_alert_danger(paste0("check: ", length(result$findings),
+                                   " finding(s)"))
+      print_findings(result$findings)
     }
+  } else if (identical(result$command, "assess")) {
+    cli::cli_alert_success(paste0(
+      "assess: ", result$packages, " package(s) scored with ",
+      result$engine$id, " ", result$engine$version,
+      if (length(result$na_metrics) > 0)
+        paste0(" (NA metrics: ", paste(result$na_metrics, collapse = ", "), ")")
+      else ""))
+  } else if (identical(result$command, "review")) {
+    cli::cli_alert_success(paste0(
+      "review: ", length(result$stubs_created), " stub(s) created, ",
+      length(result$findings), " finding(s)"))
+    if (length(result$findings) > 0) print_findings(result$findings)
+  } else if (identical(result$command, "scan")) {
+    s <- result$summary
+    msg <- paste0(
+      "scan: ", s$total, " packages (", s$direct, " direct, ",
+      s$transitive, " transitive); ", s$in_scope_assessed, " in scope, ",
+      s$recommended_exempt, " exempt, ", s$force_included, " force-included")
+    if (identical(result$status, "incomplete")) {
+      cli::cli_alert_danger(paste0(
+        msg, "\nscan INCOMPLETE -- could not parse: ",
+        paste(result$skipped_files, collapse = ", "),
+        " (packages referenced only there are missing; fix and re-run)"))
+    } else {
+      cli::cli_alert_success(msg)
+    }
+  } else if (identical(result$command, "init")) {
+    cli::cli_alert_success(paste0(
+      "init: ", length(result$created), " created, ",
+      length(result$skipped), " already present (kept)"))
   }
   invisible(exit_code)
 }

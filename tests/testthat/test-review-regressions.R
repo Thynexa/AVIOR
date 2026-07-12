@@ -208,21 +208,45 @@ test_that("R2: an unparseable source file makes the inventory incomplete, not cl
 
   on_disk <- avior:::read_yaml_file(file.path(root, "validation", "inventory.yml"))
   expect_false(on_disk$scan$complete)   # the gap is auditable in the artifact
+
+  # #18 is self-contained: `main scan` returns non-success here and now
+  old <- setwd(root); on.exit(setwd(old), add = TRUE)
+  expect_identical(suppressWarnings(suppressMessages(main("scan"))), 1L)
+  out <- capture.output(
+    code <- suppressWarnings(suppressMessages(main(c("scan", "--format", "json")))))
+  expect_identical(code, 1L)
+  parsed <- jsonlite::fromJSON(paste(out, collapse = "\n"))
+  expect_identical(parsed$status, "incomplete")
+  expect_true("analysis/broken.R" %in% parsed$skipped_files)
 })
 
-test_that("R3: character.only = FALSE (or absent) keeps the bare package name", {
+test_that("R3: only literal FALSE is static; F/T are rebindable and skipped", {
   root <- tempfile("co-")
   dir.create(root)
   writeLines(c(
-    "library(jsonlite, character.only = FALSE)",   # static
-    "require(lme4, character.only = FALSE)",        # static
-    "library(survival)",                            # static (absent)
+    "library(jsonlite, character.only = FALSE)",   # NUM_CONST FALSE -> static
+    "require(mvtnorm, character.only = FALSE)",     # static
+    "library(survival)",                            # absent -> static
     "pkg <- 'dyn'",
-    "library(pkg, character.only = TRUE)"           # dynamic -> skip
+    "library(pkg, character.only = TRUE)"           # TRUE -> skip
   ), file.path(root, "src.R"))
   calls <- avior:::scan_direct_calls(root)
-  expect_true(all(c("jsonlite", "lme4", "survival") %in% calls$package))
+  expect_true(all(c("jsonlite", "mvtnorm", "survival") %in% calls$package))
   expect_false("pkg" %in% calls$package)
+})
+
+test_that("R3b: character.only = F (rebindable) is not treated as literal FALSE", {
+  root <- tempfile("co2-")
+  dir.create(root)
+  # F <- TRUE makes character.only actually TRUE at runtime, so `lme4` (the
+  # value of pkg) is loaded and `pkg` must NOT be recorded as a package
+  writeLines(c(
+    "F <- TRUE",
+    "pkg <- 'lme4'",
+    "library(pkg, character.only = F)"
+  ), file.path(root, "src.R"))
+  calls <- avior:::scan_direct_calls(root)
+  expect_false("pkg" %in% calls$package)   # F is not a safe literal false
 })
 
 test_that("F19: argv hygiene — bad --format usage exits 2", {

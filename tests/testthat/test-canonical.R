@@ -165,6 +165,32 @@ test_that("write_json_canonical never emits scientific notation (FR-X-8)", {
   expect_identical(back$one, 1)
 })
 
+test_that("non-finite numbers become null (JSON/YAML/CSV), never illegal output", {
+  expect_identical(avior:::avior_format_num(Inf), NA_character_)
+  expect_identical(avior:::avior_format_num(-Inf), NA_character_)
+  expect_identical(avior:::avior_format_num(NaN), NA_character_)
+
+  pj <- tempfile(); py <- tempfile(); pc <- tempfile()
+  on.exit(unlink(c(pj, py, pc)), add = TRUE)
+
+  avior:::write_json_canonical(list(a = Inf, b = -Inf, c = NaN, ok = 0.5), pj)
+  jtxt <- paste(readLines(pj), collapse = "\n")
+  expect_true(jsonlite::validate(jtxt))              # valid JSON, not Inf.0
+  expect_false(grepl("Inf|NaN", jtxt))
+  back <- jsonlite::fromJSON(jtxt, simplifyVector = FALSE)
+  expect_true(is.null(back$a) && is.null(back$b) && is.null(back$c))
+  expect_identical(back$ok, 0.5)
+
+  avior:::write_yaml_canonical(list(a = Inf, b = NaN, ok = 0.5), py)
+  ytxt <- readLines(py)
+  expect_true("a: null" %in% ytxt)
+  expect_true("b: null" %in% ytxt)
+
+  avior:::write_csv_canonical(
+    data.frame(x = c(Inf, 0.5), stringsAsFactors = FALSE), pc)
+  expect_identical(readLines(pc), c("x", "", "0.5"))  # Inf -> empty field
+})
+
 test_that("write_json_canonical never mistakes a string for a number", {
   p <- tempfile(); on.exit(unlink(p), add = TRUE)
   # a user string that looks like an internal number token must stay a string
