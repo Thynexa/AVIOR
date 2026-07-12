@@ -54,10 +54,11 @@
   <tr><td>项目分析代码的验证（双编程 / 独立 QC）</td><td>程序验证领域，申办方统计编程流程负责；包环境证据是分析结果可信的前提之一，不是全部</td></tr>
   <tr><td>21 CFR Part 11 电子记录/签名控制</td><td>宿主系统（QMS/eDMS）责任；本证据包为 signature-ready，签署在客户体系中完成</td></tr>
 </table>
-<p><code>base</code>/<code>recommended</code> 包默认豁免的出处：R Foundation
-《R: Regulatory Compliance and Validation Issues》（R-FDA.pdf）——Base R 与 Recommended
-包随 R 发行、经 R Core SDLC 管理，视为低风险；本项目中 <code>survival</code>
-因承担主分析经 <code>scope.include</code> 拉回评估范围（见下节）。</p>
+<p><strong><code>base</code>/<code>recommended</code> 包默认豁免的依据分层</strong>：</p>
+<ul>
+  <li><em>事实依据</em>——R Foundation《R: Regulatory Compliance and Validation Issues》（R-FDA.pdf）支持的是「Base R 与 Recommended 包属 R 官方发行范围、由 R Core 按其 SDLC 开发与维护」这一事实；该文档并未给出「视为低风险」的结论，反而要求终端组织按 intended use 制定自己的 SOP 与风险控制。</li>
+  <li><em>策略推论</em>——「默认豁免（低风险起点）」是 <strong>AVIOR 的策略默认值</strong>（本项目 <code>avior.yml</code> 采用），其风险分级方法论出处为 R Validation Hub 白皮书四准则；豁免非铁律，可经 <code>scope.include</code> 按用途拉回评估范围。本项目中 <code>survival</code> 即因承担主分析被拉回（见下节）。</li>
+</ul>
 
 <h2>3. 范围与包分类</h2>
 <p>依据 <code>renv.lock</code> 与项目源码分析，共 5 个包，按三分类与调用角色处理如下：</p>

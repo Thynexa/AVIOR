@@ -195,7 +195,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | --- | --- | --- |
 | FR-BUNDLE-1 | 产出不可变证据包目录 `validation/evidence/bundle-<UTC 时间戳>/`；已存在的 bundle 永不覆盖。zip 为**传输件而非归档件**：仅 `--zip` 时生成且默认 gitignore（目录 + manifest 是归档形态，zip 可经 `SOURCE_DATE_EPOCH` 确定性重建）。留存口径：git 历史即归档，工作区可按需裁剪旧 bundle | P0 |
 | FR-BUNDLE-2 | 内容物：验证报告（HTML + docx，PDF 可选）、`traceability.csv` 追溯矩阵、`environment.json` 环境指纹、`session-info.txt` 会话指纹、策略/清单/评分/决策/测试结果的快照副本、`BUNDLE.yml` 元数据、`MANIFEST.sha256` | P0 |
-| FR-BUNDLE-3 | 报告结构对齐 GAMP 5 叙事：方法论引用（四准则）→ **范围与边界声明** → 范围与分类 → 评分与阈值 → 决策汇总 → 测试证据 → 环境与可复现性 → 附录（逐包明细）；模板字符串外置，V1 提供中文，V1.1 补英文。「范围与边界声明」为固定章节，明确本证据包**不覆盖**：计算环境 IQ/OQ/PQ（申办方 IT 在其 QMS 下的责任，GAMP 5 管辖）、项目分析代码的 QC/双重编程（§1.4 边界）、Part 11 控制（宿主系统责任）；`base`/`recommended` 默认豁免须引用 R Foundation《R: Regulatory Compliance and Validation Issues》（R-FDA.pdf）作为出处 | P0 |
+| FR-BUNDLE-3 | 报告结构对齐 GAMP 5 叙事：方法论引用（四准则）→ **范围与边界声明** → 范围与分类 → 评分与阈值 → 决策汇总 → 测试证据 → 环境与可复现性 → 附录（逐包明细）；模板字符串外置，V1 提供中文，V1.1 补英文。「范围与边界声明」为固定章节，明确本证据包**不覆盖**：计算环境 IQ/OQ/PQ（申办方 IT 在其 QMS 下的责任，GAMP 5 管辖）、项目分析代码的 QC/双重编程（§1.4 边界）、Part 11 控制（宿主系统责任）；`base`/`recommended` 默认豁免须分层署明依据——R-FDA.pdf 仅支持「属官方发行范围、经 R Core SDLC 维护」的**事实**（该文档不下「低风险」结论，且要求组织按 intended use 自定 SOP），「默认豁免（低风险起点）」为 **AVIOR 策略默认值**、其风险分级出处为白皮书四准则，且可经 `scope.include` 拉回 | P0 |
 | FR-BUNDLE-4 | 追溯矩阵列定义见 §6.5；每行打通「包 → 分类 → 评分 → 决策 → 测试 → 结果」 | P0 |
 | FR-BUNDLE-5 | 环境指纹：R 版本、OS/平台、仓库 URL（含 PPM 快照 ID 如有）、`renv.lock` SHA-256、avior 与引擎版本、locale（至少 `LC_COLLATE`）、BLAS/LAPACK 实现与版本（经 `sessionInfo()` 采集；不可得记 `"unknown"`，键不可省略）、容器镜像摘要（可检测时记录，否则 `null`）；完整 `sessionInfo()` 文本随 bundle 存为 `session-info.txt` | P0 |
 | FR-BUNDLE-6 | bundle 前置校验：等价于 `check` 通过才允许编译（`--force` 可越过，但报告首页醒目标注「完整性校验未通过」） | P0 |
