@@ -165,6 +165,22 @@ test_that("write_json_canonical never emits scientific notation (FR-X-8)", {
   expect_identical(back$one, 1)
 })
 
+test_that("write_json_canonical never mistakes a string for a number", {
+  p <- tempfile(); on.exit(unlink(p), add = TRUE)
+  # a user string that looks like an internal number token must stay a string
+  avior:::write_json_canonical(
+    list(note = "@@AVIORNUM:1.0@@", q = 'say "hi"', bs = "a\\b",
+         zh = "低风险", real = 1.0), p)
+  txt <- readChar(p, file.size(p), useBytes = TRUE); Encoding(txt) <- "UTF-8"
+  back <- jsonlite::fromJSON(txt, simplifyVector = FALSE)
+  expect_identical(back$note, "@@AVIORNUM:1.0@@")   # NOT the number 1.0
+  expect_true(is.character(back$note))
+  expect_identical(back$q, 'say "hi"')
+  expect_identical(back$bs, "a\\b")
+  expect_identical(back$zh, "低风险")               # UTF-8 preserved, not <e4> mangled
+  expect_true(is.numeric(back$real))                 # a real double is still a number
+})
+
 # --- CSV writer -------------------------------------------------------------
 
 test_that("write_csv_canonical quotes only when needed (ASCII comma/quote/newline/non-ASCII)", {

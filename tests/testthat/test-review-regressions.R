@@ -179,6 +179,52 @@ test_that("F14: an empty Packages section yields an empty inventory, not an erro
   expect_identical(inv$summary$total, 0L)
 })
 
+test_that("R1: schema version is matched exactly, not truncated", {
+  root <- tempfile("ver-")
+  dir.create(file.path(root, "validation"), recursive = TRUE)
+  f <- file.path(root, "validation", "avior.yml")
+  base <- c("policy:", "  weights: { has_news: 1.0 }", "  rationale: ok")
+  for (bad in c("avior: 1.5", "avior: 1.9", "avior: 2", "avior: true", "avior: 0")) {
+    writeLines(c(bad, base), f)
+    expect_error(avior_config_load(root), class = "avior_config_error",
+                 label = paste("rejects", bad))
+  }
+  # exactly 1 (integer or 1.0) is accepted
+  writeLines(c("avior: 1", base), f)
+  expect_s3_class(avior_config_load(root), "avior_config")
+  writeLines(c("avior: 1.0", base), f)
+  expect_s3_class(avior_config_load(root), "avior_config")
+})
+
+test_that("R2: an unparseable source file makes the inventory incomplete, not clean", {
+  root <- local_example_project()
+  # a broken file referencing a package only via that file
+  writeLines(c("minqa::foo(", "library(zeallot)"),
+             file.path(root, "analysis", "broken.R"))
+  suppressWarnings(inv <- avior_scan(root))
+  expect_false(is.null(inv$scan))
+  expect_false(inv$scan$complete)
+  expect_true("analysis/broken.R" %in% unlist(inv$scan$skipped_files))
+
+  on_disk <- avior:::read_yaml_file(file.path(root, "validation", "inventory.yml"))
+  expect_false(on_disk$scan$complete)   # the gap is auditable in the artifact
+})
+
+test_that("R3: character.only = FALSE (or absent) keeps the bare package name", {
+  root <- tempfile("co-")
+  dir.create(root)
+  writeLines(c(
+    "library(jsonlite, character.only = FALSE)",   # static
+    "require(lme4, character.only = FALSE)",        # static
+    "library(survival)",                            # static (absent)
+    "pkg <- 'dyn'",
+    "library(pkg, character.only = TRUE)"           # dynamic -> skip
+  ), file.path(root, "src.R"))
+  calls <- avior:::scan_direct_calls(root)
+  expect_true(all(c("jsonlite", "lme4", "survival") %in% calls$package))
+  expect_false("pkg" %in% calls$package)
+})
+
 test_that("F19: argv hygiene — bad --format usage exits 2", {
   root <- local_example_project()
   old <- setwd(root); on.exit(setwd(old), add = TRUE)
