@@ -36,9 +36,18 @@ run_command <- function(opts) {
     },
     scan = {
       inv <- avior_scan(".")
-      list(command = "scan", status = "ok",
+      incomplete <- isFALSE(inv$scan$complete)
+      list(command = "scan",
+           # an incomplete scan is a business failure here and now, not a
+           # property deferred to `check` in a later PR (FR-SCAN-3)
+           status = if (incomplete) "incomplete" else "ok",
            lockfile = inv$lockfile,
-           summary = unclass(inv$summary))
+           summary = unclass(inv$summary),
+           skipped_files = if (incomplete) {
+             as.character(unlist(inv$scan$skipped_files))
+           } else {
+             character(0)
+           })
     },
     avior_abort(paste0("unknown command: ", opts$command, " (expected: init|scan)"))
   )
@@ -74,20 +83,32 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
     return(invisible(2L))
   }
 
+  # business failure (e.g. an incomplete scan) -> exit 1; success -> 0
+  exit_code <- if (identical(result$status, "ok")) 0L else 1L
+
   if (identical(opts$format, "json")) {
     emit_json(result)
-  } else {
-    if (identical(result$command, "scan")) {
-      s <- result$summary
-      cli::cli_alert_success(paste0(
-        "scan: ", s$total, " packages (", s$direct, " direct, ",
-        s$transitive, " transitive); ", s$in_scope_assessed, " in scope, ",
-        s$recommended_exempt, " exempt, ", s$force_included, " force-included"))
-    } else if (identical(result$command, "init")) {
-      cli::cli_alert_success(paste0(
-        "init: ", length(result$created), " created, ",
-        length(result$skipped), " already present (kept)"))
-    }
+    return(invisible(exit_code))
   }
-  invisible(0L)
+
+  if (identical(result$command, "scan")) {
+    s <- result$summary
+    msg <- paste0(
+      "scan: ", s$total, " packages (", s$direct, " direct, ",
+      s$transitive, " transitive); ", s$in_scope_assessed, " in scope, ",
+      s$recommended_exempt, " exempt, ", s$force_included, " force-included")
+    if (identical(result$status, "incomplete")) {
+      cli::cli_alert_danger(paste0(
+        msg, "\nscan INCOMPLETE -- could not parse: ",
+        paste(result$skipped_files, collapse = ", "),
+        " (packages referenced only there are missing; fix and re-run)"))
+    } else {
+      cli::cli_alert_success(msg)
+    }
+  } else if (identical(result$command, "init")) {
+    cli::cli_alert_success(paste0(
+      "init: ", length(result$created), " created, ",
+      length(result$skipped), " already present (kept)"))
+  }
+  invisible(exit_code)
 }

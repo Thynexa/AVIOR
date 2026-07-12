@@ -147,7 +147,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | --- | --- | --- |
 | FR-SCAN-1 | 解析 `renv.lock`（首选）或 `DESCRIPTION`，产出包清单 `validation/inventory.yml`（生成物，纳入 git） | P0 |
 | FR-SCAN-2 | 三分类：`base`/`recommended`（按 R 发行优先级字段）、`contributed`、`custom`（依 renv 来源为 GitHub/local/私有仓库，或 `scope.custom_orgs` 规则）；`base`/`recommended` **默认**不纳入评分与深验（随 R 发行分发，视为低风险） | P0 |
-| FR-SCAN-3 | intended-for-use 识别：静态扫描项目 R 源码中的 `library()`/`require()`/`pkg::` 调用，区分 `direct`（直接调用）与 `transitive`（间接依赖）；每个判定附出处（文件:行 或 DESCRIPTION 字段） | P0 |
+| FR-SCAN-3 | intended-for-use 识别：静态扫描项目 R 源码中的 `library()`/`require()`/`pkg::` 调用，区分 `direct`（直接调用）与 `transitive`（间接依赖）；每个判定附出处（文件:行 或 DESCRIPTION 字段）。**无法解析的源码文件不得被静默跳过**：其相对路径（C locale 排序）记入 inventory 的可选 `scan` 段（`scan: { complete: false, skipped_files: [...] }`；完整扫描时该段省略，故干净项目 inventory 字节不变），`avior scan` 据此返回非成功状态（退出码 1），`check` 亦据此报红（`scan_incomplete`）——瞬时告警不构成审计证据 | P0 |
 | FR-SCAN-4 | 人工覆盖：`scope.include`/`scope.exclude` 强制调整清单，覆盖行为本身记录进 inventory（`overridden: true` + 来源）；`scope.include` 可将默认豁免的 `base`/`recommended` 包**拉回评估范围**，纳入后照常评分、决策与补测 | P0 |
 | FR-SCAN-5 | inventory 记录 lockfile 的 SHA-256，作为后续漂移检测基准 | P0 |
 
