@@ -1,0 +1,4 @@
+# FR-X-8 / NFR-6: LF everywhere. Windows CI checks out with autocrlf by
+# default, which would change the byte content (and thus the SHA-256) of
+# fixture files like renv.lock and break the byte-identical ACs.
+* text=auto eol=lf

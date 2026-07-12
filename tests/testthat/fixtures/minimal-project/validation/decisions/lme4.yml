@@ -1,0 +1,19 @@
+avior: 1
+package: lme4
+version: "1.1-35.1"
+score_snapshot: { score: 0.58, tier: high, scored_at: "2026-07-08T11:40:00Z", engine: "riskmetric 0.2.4" }
+use_statement: >
+  用于拟合线性混合效应模型（lmer），剂量为固定效应、受试者为随机截距，
+  用于主要疗效分析。属高风险统计计算用途。
+decision: include_with_tests      # 高风险 → 必须关联定向测试
+rationale: >
+  高风险源于统计计算复杂度与覆盖率信号，而非质量缺陷。针对声明用途
+  （lmer 固定/随机效应估计）补充金标准比对测试后纳入。
+tests:
+  - tests/test-lme4-fit.R
+reviewed_by: "jin@example.com"
+date: "2026-07-08"
+ai_assisted: false
+confirmed_by: null
+assessment_type: initial          # initial | delta；V1 固定 initial（PRD §6.3）
+supersedes: null                  # V2 变更影响评估引用；V1 恒为 null

@@ -1,0 +1,5 @@
+#!/usr/bin/env Rscript
+# CLI shim: `avior <command> [--format json]`. On Windows, invoke via
+# `Rscript path/to/avior` (a .bat wrapper ships with the installer, PRD 7.1).
+status <- avior::main(commandArgs(trailingOnly = TRUE))
+quit(save = "no", status = if (is.numeric(status)) status else 0L)

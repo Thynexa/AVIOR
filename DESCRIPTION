@@ -1,0 +1,29 @@
+Package: avior
+Title: Validation Evidence Compiler for R Package Environments
+Version: 0.0.0.9000
+Authors@R:
+    person("Thynexa", "Team", email = "opensource@thynexa.com",
+           role = c("aut", "cre"))
+Description: A local-first evidence compiler for R package validation in
+    regulated environments (FDA / EMA / NMPA submissions). Takes a project's
+    dependency manifest ('renv.lock') and validation policy as input and
+    produces a structured, tamper-evident, signature-ready validation
+    evidence bundle: dependency identification, risk scoring via pluggable
+    assessment engines, decision records, targeted testing, environment
+    fingerprinting, and audit-ready reporting. See the product requirements
+    document in the repository for the full file contracts.
+License: Apache License (>= 2)
+URL: https://github.com/Thynexa/AVIOR
+BugReports: https://github.com/Thynexa/AVIOR/issues
+Depends: R (>= 4.1)
+Imports:
+    cli,
+    digest,
+    jsonlite,
+    utils,
+    yaml
+Suggests:
+    riskmetric,
+    testthat (>= 3.0.0)
+Encoding: UTF-8
+Config/testthat/edition: 3

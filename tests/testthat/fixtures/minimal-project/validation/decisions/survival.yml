@@ -1,0 +1,20 @@
+avior: 1
+package: survival                 # recommended 包，经 scope.include 强制纳入（演示：默认豁免不是铁律）
+version: "3.5-7"
+score_snapshot: { score: 0.61, tier: high, scored_at: "2026-07-08T11:40:00Z", engine: "riskmetric 0.2.4" }
+use_statement: >
+  用于 Cox 比例风险模型（coxph）拟合主分析的组间风险比（fit_surv，
+  analysis/main.R:9-11）。承担主分析统计量，intended-use 重要性高。
+decision: include_with_tests      # 强制纳入后照常走高风险路径 → 必须关联定向测试
+rationale: >
+  survival 为 recommended 包，三分类默认豁免；但其承担主分析统计量，
+  按四准则第一条（用途）经 scope.include 强制纳入。高风险源于社区指标
+  而非质量缺陷，针对声明用途（coxph 系数估计）补充金标准比对测试后纳入。
+tests:
+  - tests/test-survival-coxph.R
+reviewed_by: "jin@example.com"
+date: "2026-07-08"
+ai_assisted: false
+confirmed_by: null
+assessment_type: initial          # initial | delta；V1 固定 initial（PRD §6.3）
+supersedes: null                  # V2 变更影响评估引用；V1 恒为 null
