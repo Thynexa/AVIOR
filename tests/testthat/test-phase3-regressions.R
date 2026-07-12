@@ -185,6 +185,37 @@ test_that("P-scan: an incomplete scan turns the check gate red", {
     vapply(avior_check(clean)$findings, function(x) x$type, character(1)))
 })
 
+test_that("P-cli: assess/review/check reject unknown args (exit 2)", {
+  root <- local_example_project()
+  old <- setwd(root); on.exit(setwd(old), add = TRUE)
+  # rejection happens before the engine is touched, so no riskmetric needed
+  expect_identical(suppressMessages(main(c("assess", "--bogus"))), 2L)
+  expect_identical(suppressMessages(main(c("assess", "stray"))), 2L)
+  expect_identical(suppressMessages(main(c("review", "--deep"))), 2L)
+  expect_identical(suppressMessages(main(c("check", "--only", "x"))), 2L)
+})
+
+test_that("P-cli: review/check JSON collection fields are always arrays", {
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = p3_engine(), deep = TRUE)
+  old <- setwd(root); on.exit(setwd(old), add = TRUE)
+
+  jr <- jsonlite::fromJSON(
+    paste(capture.output(main(c("review", "--format", "json"))), collapse = "\n"),
+    simplifyVector = FALSE)
+  expect_true(is.list(jr$stubs_created))   # [] when none, never a bare scalar
+  expect_true(is.list(jr$findings))
+
+  # break one decision so check reports exactly one finding -> still an array
+  f <- file.path("validation", "decisions", "jsonlite.yml")
+  writeLines(sub("rationale: .*", 'rationale: ""', readLines(f)), f)
+  jc <- jsonlite::fromJSON(
+    paste(capture.output(main(c("check", "--format", "json"))), collapse = "\n"),
+    simplifyVector = FALSE)
+  expect_true(is.list(jc$findings) && length(jc$findings) >= 1)
+})
+
 test_that("P15: --offline is recorded in the run disclosure", {
   root <- local_example_project()
   old <- setwd(root); on.exit(setwd(old), add = TRUE)

@@ -68,31 +68,37 @@ run_command <- function(opts) {
            }))
     },
     assess = {
-      deep <- "--deep" %in% opts$args
-      offline <- "--offline" %in% opts$args
-      i <- which(opts$args == "--only")
-      if (length(i) > 1) avior_abort("--only given more than once")
+      # consume this command's own flags, then reject anything left over
+      args <- opts$args
+      deep <- "--deep" %in% args; args <- args[args != "--deep"]
+      offline <- "--offline" %in% args; args <- args[args != "--offline"]
       only <- NULL
+      i <- which(args == "--only")
+      if (length(i) > 1) avior_abort("--only given more than once")
       if (length(i) == 1) {
-        if (i == length(opts$args)) avior_abort("--only requires a package name")
-        only <- opts$args[i + 1]
+        if (i == length(args)) avior_abort("--only requires a package name")
+        only <- args[i + 1]
+        args <- args[-c(i, i + 1)]
       }
+      reject_extra_args(args, "assess")
       s <- avior_assess(".", only = only, deep = deep,
                         network_available = !offline)
       list(command = "assess", status = "ok",
            engine = unclass(s$engine), run = unclass(s$run),
            packages = length(s$packages),
-           na_metrics = as.character(unclass(s$na_metrics)))
+           na_metrics = json_array(unclass(s$na_metrics)))
     },
     review = {
+      reject_extra_args(opts$args, "review")
       r <- avior_review(".")
       # review reports but does not gate (check does); "findings" instead of
       # "ok" so JSON consumers cannot mistake a flagged state for a clean one
       list(command = "review",
            status = if (length(r$findings) > 0) "findings" else "ok",
-           stubs_created = r$stubs_created, findings = r$findings)
+           stubs_created = json_array(r$stubs_created), findings = r$findings)
     },
     check = {
+      reject_extra_args(opts$args, "check")
       res <- avior_check(".")
       c(list(command = "check"), res)
     },
