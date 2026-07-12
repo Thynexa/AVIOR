@@ -1,1 +1,2 @@
 # Hand-maintained (no roxygen). Keep exports sorted; grow per implemented command.
+export(avior_config_load)
