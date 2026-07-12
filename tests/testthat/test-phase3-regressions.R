@@ -216,6 +216,37 @@ test_that("P-cli: review/check JSON collection fields are always arrays", {
   expect_true(is.list(jc$findings) && length(jc$findings) >= 1)
 })
 
+test_that("F4: offline assess never asks the engine for a network metric", {
+  root <- local_example_project()
+  # policy weights include a network metric (downloads_1yr) + execution covr
+  counter <- new.env(); counter$n <- 0L; counter$ids <- character(0)
+  eng <- avior:::mock_engine(
+    list(jsonlite = p3_vals(0.9), lme4 = p3_vals(0.4),
+         mvtnorm = p3_vals(0.6), survival = p3_vals(0.35)),
+    network_metrics = "downloads_1yr", execution_metrics = "covr_coverage",
+    counter = counter)
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE, network_available = FALSE)
+  expect_false("downloads_1yr" %in% counter$ids)     # network id never requested
+  expect_false(isTRUE(counter$last_opts$network_available))  # opts carries the state
+  s <- avior:::read_yaml_file(file.path(root, "validation", "scores.yml"))
+  # the excluded network metric is disclosed as NA (network cause)
+  expect_true("downloads_1yr" %in% unlist(s$na_metrics))
+})
+
+test_that("F5: missing test-environment binding fails check closed", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "test-results.yml")
+  txt <- readLines(f)
+  # drop the whole environment block (lines from 'environment:' to before 'results:')
+  i <- grep("^environment:", txt); j <- grep("^results:", txt) - 1L
+  writeLines(txt[-(i:j)], f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("missing_test_environment" %in%
+    vapply(res$findings, function(x) x$type, character(1)))
+})
+
 test_that("P15: --offline is recorded in the run disclosure", {
   root <- local_example_project()
   old <- setwd(root); on.exit(setwd(old), add = TRUE)

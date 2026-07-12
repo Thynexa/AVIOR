@@ -22,6 +22,10 @@ test_that("J1 pipeline runs green end-to-end on the example project", {
   s <- avior_assess(root, engine = eng, deep = TRUE)
   expect_identical(s$packages$survival$tier, "high")
 
+  # the mock engine differs from the fixture's hand-authored snapshots, so a
+  # faithful J1 includes the reviewer re-approving against the new assessment
+  resnapshot_decisions(root)
+
   r <- avior_review(root)
   expect_identical(r$stubs_created, character(0))  # decisions already exist
   expect_identical(r$findings, list())

@@ -104,9 +104,23 @@ check_test_results <- function(cfg, inventory) {
                   fix = "fix the failures, then re-run `avior test`"))
     }
   }
-  if (!is.null(results)) {
-    env_sha <- results$environment$lockfile_sha256
-    if (!is.null(env_sha) && !identical(env_sha, inventory$lockfile$sha256)) {
+  # FR-TEST-2/A4: results must PROVE their runtime environment. "Cannot prove
+  # the binding" fails closed exactly like "proven mismatch" — a missing or
+  # incomplete `environment` block (old format, hand-deleted field) must not
+  # sail through. Require the mapping + the three required fields, then compare.
+  if (!is.null(results) && length(results$results) > 0) {
+    env <- results$environment
+    required <- c("lockfile_sha256", "r_version", "platform")
+    missing_fields <- !is.list(env) ||
+      !all(vapply(required, function(k) {
+        v <- env[[k]]
+        length(v) == 1 && !is.na(v) && nzchar(as.character(v))
+      }, logical(1)))
+    if (missing_fields) {
+      add(finding("-", "missing_test_environment",
+                  "test-results.yml lacks a complete environment binding (lockfile_sha256, r_version, platform) -- the run environment cannot be proven (FR-TEST-2)",
+                  fix = "re-run `avior test`, which records the runtime environment"))
+    } else if (!identical(env$lockfile_sha256, inventory$lockfile$sha256)) {
       add(finding("-", "stale_tests",
                   "test results were produced against a different lockfile (FR-TEST-2)",
                   fix = "re-run `avior test` in the current environment"))

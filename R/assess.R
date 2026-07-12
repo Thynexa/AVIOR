@@ -76,7 +76,14 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
 
   metric_ids <- names(weights)
   cost <- registry$cost[match(metric_ids, registry$id)]
-  run_ids <- if (deep) metric_ids else metric_ids[cost != "execution"]
+  # Metrics actually run this pass: execution-tier only under --deep;
+  # network-tier only when online. Excluded metrics become NA with the
+  # matching cause, so offline never even asks the engine for a network
+  # metric (FR-ASSESS-4) rather than merely relabelling the disclosure.
+  keep <- rep(TRUE, length(metric_ids))
+  if (!deep) keep <- keep & cost != "execution"
+  if (!network_available) keep <- keep & cost != "network"
+  run_ids <- metric_ids[keep]
 
   pkgs <- Filter(function(p) isTRUE(p$in_scope), inventory$packages)
   names(pkgs) <- vapply(pkgs, function(p) p$name, character(1))
@@ -108,7 +115,8 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
     }
 
     if (is.null(entry)) {
-      res <- eng$assess(p$name, p$version, run_ids, list(deep = deep))
+      res <- eng$assess(p$name, p$version, run_ids,
+                        list(deep = deep, network_available = network_available))
       # 7.2 adapter contract validation: values are goodness in [0,1] or NA
       bad <- !is.na(res$value) & (res$value < 0 | res$value > 1)
       if (any(bad)) {

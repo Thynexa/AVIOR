@@ -67,6 +67,22 @@ review_findings <- function(cfg, inventory = NULL, scores = NULL) {
                   fix = "fix the YAML structure in the decision record (see PRD 6.3)"))
       next
     }
+    if (!identical(as.integer(d$avior %||% 0L), 1L)) {
+      add(finding(pkg, "invalid_decision",
+                  "decision record has a missing or unsupported schema version (expected avior: 1)",
+                  fix = "set `avior: 1` in the decision record"))
+      next
+    }
+    # bind the record to its package: the filename is decisions/<pkg>.yml, so a
+    # mismatched `package:` field means the file, its embedded identity and the
+    # downstream traceability point at different objects (fail closed)
+    if (!identical(d$package %||% "", pkg)) {
+      add(finding(pkg, "package_mismatch",
+                  paste0("decision file decisions/", pkg, ".yml declares package `",
+                         d$package %||% "<none>", "`"),
+                  fix = "make the `package:` field match the filename (and the inventory)"))
+      next
+    }
 
     sp <- scores$packages[[pkg]]
     if (is.null(sp)) {
@@ -98,6 +114,24 @@ review_findings <- function(cfg, inventory = NULL, scores = NULL) {
                   paste0("decision refers to version ", d$version %||% "<none>",
                          " but the inventory has ", p$version),
                   fix = "re-run `avior assess` and re-review the package"))
+    } else if (!is.null(sp)) {
+      # Even at the same package version, the risk RESULT the decision was
+      # approved against can change: switching engines (PRD 7.2) or changing
+      # policy weights/metrics moves score/tier. An old approval must not
+      # silently stand over a newer assessment. scored_at is deliberately not
+      # compared — it changes on every re-score even when the result is equal.
+      snap <- if (is.list(d$score_snapshot)) d$score_snapshot else list()
+      cur_engine <- trimws(paste(scores$engine$id %||% "", scores$engine$version %||% ""))
+      snap_score <- suppressWarnings(round(as.numeric(snap$score %||% NA), 4))
+      cur_score <- suppressWarnings(round(as.numeric(sp$score %||% NA), 4))
+      stale <- !identical(snap$engine %||% "", cur_engine) ||
+        !identical(snap$tier %||% "", sp$tier %||% "") ||
+        !isTRUE(all.equal(snap_score, cur_score))
+      if (stale) {
+        add(finding(pkg, "stale_score",
+                    "decision's score_snapshot no longer matches the current assessment (engine/score/tier changed; PRD 7.2)",
+                    fix = "re-review the package against the current scores.yml and refresh the decision"))
+      }
     }
     if (tier %in% c("medium", "high") && !identical(dec, "exclude") &&
         !nzchar(trimws(d$use_statement %||% ""))) {
@@ -109,16 +143,21 @@ review_findings <- function(cfg, inventory = NULL, scores = NULL) {
     }
     tests <- unlist(d$tests)
     if (identical(dec, "include_with_tests")) {
-      # tests must live under the validation dir ("tests/..." or
-      # "validation/tests/..." spellings); no path traversal
-      existing <- vapply(tests, function(t) {
-        if (grepl("..", t, fixed = TRUE)) return(FALSE)
-        file.exists(file.path(cfg$paths$validation, sub("^validation/", "", t)))
-      }, logical(1))
-      if (length(tests) == 0 || !all(existing)) {
+      # A targeted test must be an actual testthat file under validation/tests/
+      # (FR-TEST-1/FR-REVIEW-2). Merely "some existing file" lets avior.yml or
+      # any decisions/*.yml masquerade as a test. Require the tests/ prefix,
+      # a .R extension, no traversal, and existence under the validation dir.
+      valid_test <- function(t) {
+        rel <- sub("^validation/", "", t)
+        if (grepl("..", rel, fixed = TRUE)) return(FALSE)
+        if (!grepl("^tests/", rel)) return(FALSE)
+        if (!grepl("\\.[Rr]$", rel)) return(FALSE)
+        file.exists(file.path(cfg$paths$validation, rel))
+      }
+      if (length(tests) == 0 || !all(vapply(tests, valid_test, logical(1)))) {
         add(finding(pkg, "missing_tests",
-                    "include_with_tests requires at least one existing test file under the validation dir",
-                    fix = "add targeted tests under validation/tests/ and list them"))
+                    "include_with_tests requires at least one existing testthat file under validation/tests/ (path tests/<name>.R)",
+                    fix = "add targeted tests under validation/tests/ and list them as tests/<name>.R"))
       }
     }
     if (identical(tier, "high") && identical(dec, "include") &&

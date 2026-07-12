@@ -136,7 +136,13 @@ mock_engine <- function(values, id = "mock", version = "1.0",
       )
     },
     assess = function(pkg, version, metric_ids, opts) {
-      if (!is.null(counter)) counter$n <- counter$n + 1L
+      if (!is.null(counter)) {
+        counter$n <- counter$n + 1L
+        # record the ids and opts of each call so tests can assert, e.g.,
+        # that an offline run never asks the engine for a network metric
+        counter$ids <- unique(c(counter$ids, metric_ids))
+        counter$last_opts <- opts
+      }
       vals <- vapply(metric_ids, function(mid) {
         v <- values[[pkg]][[mid]]
         if (is.null(v)) NA_real_ else as.numeric(v)

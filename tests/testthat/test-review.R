@@ -94,6 +94,55 @@ test_that("each completeness rule fires with the right package and type", {
   expect_identical(finding_types(res, "jsonlite"), "unconfirmed_ai")
 })
 
+test_that("F1: a decision whose package field is wrong is rejected", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "decisions", "jsonlite.yml")
+  writeLines(sub("package: jsonlite.*", "package: wrong-package", readLines(f)), f)
+  res <- avior_review(root)
+  types <- finding_types(res, "jsonlite")
+  expect_true("package_mismatch" %in% types)
+
+  # a decision missing the schema version is invalid
+  writeLines(grep("^avior:", readLines(f), invert = TRUE, value = TRUE), f)
+  res2 <- avior_review(root)
+  expect_true("invalid_decision" %in% finding_types(res2, "jsonlite"))
+})
+
+test_that("F2: score_snapshot mismatch (engine/score/tier) is stale even at same version", {
+  # engine switch: same package version, different engine -> stale_score
+  root <- local_example_project()
+  s <- file.path(root, "validation", "scores.yml")
+  writeLines(sub('engine: \\{ id: riskmetric', 'engine: { id: other',
+                 readLines(s)), s)
+  res <- avior_review(root)
+  expect_true("stale_score" %in% finding_types(res, "jsonlite"))
+
+  # score change at the same engine and version -> stale_score
+  root2 <- local_example_project()
+  s2 <- file.path(root2, "validation", "scores.yml")
+  writeLines(sub("score: 0.12", "score: 0.9", readLines(s2)), s2)
+  expect_true("stale_score" %in% finding_types(avior_review(root2), "jsonlite"))
+
+  # a consistent snapshot yields no stale_score (clean fixture)
+  expect_false("stale_score" %in% finding_types(avior_review(local_example_project())))
+})
+
+test_that("F3: include_with_tests must reference an existing validation/tests/*.R", {
+  mutate_tests <- function(newpath) {
+    root <- local_example_project()
+    f <- file.path(root, "validation", "decisions", "lme4.yml")
+    writeLines(sub("  - tests/test-lme4-fit.R", paste0("  - ", newpath), readLines(f)), f)
+    finding_types(avior_review(root), "lme4")
+  }
+  expect_true("missing_tests" %in% mutate_tests("avior.yml"))          # not under tests/
+  expect_true("missing_tests" %in% mutate_tests("tests/nope.R"))       # doesn't exist
+  expect_true("missing_tests" %in% mutate_tests("/etc/hosts"))         # absolute
+  expect_true("missing_tests" %in% mutate_tests("tests/../avior.yml")) # traversal
+  expect_true("missing_tests" %in% mutate_tests("tests/test-lme4-fit.txt")) # not .R
+  # the legitimate tests/<name>.R passes (clean fixture)
+  expect_false("missing_tests" %in% finding_types(avior_review(local_example_project()), "lme4"))
+})
+
 test_that("deleting a decision file is reported with the package name (AC)", {
   root <- local_example_project()
   unlink(file.path(root, "validation", "decisions", "survival.yml"))
