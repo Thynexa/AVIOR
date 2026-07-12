@@ -3,7 +3,11 @@ test_that("sha256_file matches system sha256sum output", {
   on.exit(unlink(p), add = TRUE)
   avior:::write_lines_lf(c("hello", "world"), p)
   expected <- if (nzchar(Sys.which("sha256sum"))) {
-    strsplit(system2("sha256sum", p, stdout = TRUE), " ")[[1]][1]
+    out <- system2("sha256sum", p, stdout = TRUE)
+    # GNU coreutils prefixes the line with "\" and escapes the path when it
+    # contains a backslash (every Windows tempfile path does), so parse the
+    # 64-hex digest out rather than splitting on the first field.
+    regmatches(out, regexpr("[0-9a-f]{64}", out))
   } else {
     skip("sha256sum not available")
   }
