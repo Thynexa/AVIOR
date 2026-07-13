@@ -6,7 +6,8 @@
 
 `renv.lock` in → a signature-ready validation evidence bundle out.
 
-[![Status](https://img.shields.io/badge/status-design%20phase-yellow)](./docs/PRD.md)
+[![Status](https://img.shields.io/badge/status-M1%20implemented%20·%20M2%20in%20planning-green)](./docs/PRD.md)
+[![CI](https://github.com/Thynexa/AVIOR/actions/workflows/ci.yml/badge.svg)](https://github.com/Thynexa/AVIOR/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](#license--许可)
 [![Language](https://img.shields.io/badge/implementation-R%20%E2%89%A5%204.1-276DC3)](./docs/PRD.md)
 [![PRD](https://img.shields.io/badge/PRD-development%20baseline-informational)](./docs/PRD.md)
@@ -25,11 +26,13 @@ AVIOR is a **local-first evidence compiler for R package validation** in regulat
 
 The name comes from **Avior (ε Carinae)**, a star in the keel of the mythical ship Argo — the keel of a validation program.
 
-> ### 📌 Current status: design finalized, implementation not started
+> ### 📌 Current status: M1 core pipeline implemented; M2 (evidence compilation) next
 >
-> This repository is currently in the **specification and design phase**. It contains the product requirements document, methodology research, review records, and a hand-assembled minimal example evidence bundle (corresponding to PRD milestone M0). **The core `avior` R package has not been implemented yet.**
+> The `avior` R package now implements the **M1 milestone** of the PRD: `init` / `scan` / `assess` / `review` plus the `check` CI gate (pulled forward from M2), built test-driven against the frozen v1.6 file contracts — ~490 tests, byte-identical artifacts, CI on Linux/macOS/Windows plus the R 4.1 floor (PRs #17–#19).
 >
-> The development baseline is [`PRD.md`](./docs/PRD.md) — all future work is scoped against it, and revisions go through pull requests.
+> The **evidence-compilation half is not implemented yet**: `test`, `bundle`, `verify` and the Chinese report template are milestone **M2**. The engine default is riskmetric; assessments need it installed at runtime (`check` validates policies offline via the static metric registry).
+>
+> The development baseline is [`PRD.md`](./docs/PRD.md) — all work is scoped against it, and revisions go through pull requests.
 
 ### The problem
 
@@ -50,23 +53,47 @@ Every scope decision is checked against these three axioms before it can enter t
 | A2 | **Evidence is files** | Policy, inventory, scores, decisions, and reports are all plain text/documents in the repo; git history *is* the change trail, PRs *are* the review flow |
 | A3 | **Signing stays in the customer's QMS** | Produces a signature-ready bundle (SHA-256 manifest guarantees integrity); signing and controlled archival happen in the customer's existing system (Veeva, MasterControl, paper process) |
 
-### Planned CLI (V1 core loop)
+### CLI (V1 core loop)
 
 ```bash
-avior init      # scaffold policy file skeleton and directory structure
-avior scan      # identify dependencies from renv.lock: classification + direct/transitive
-avior assess    # batch risk scoring via the engine adapter layer (riskmetric)
-avior review    # generate decision-record stubs; team fills in use/rationale/sign-off (via PR)
-avior test      # run targeted testthat tests for medium/high-risk packages
-avior bundle    # compile an immutable evidence bundle (report + traceability + fingerprint + manifest)
-avior check     # CI gate: dependency drift + completeness check
-avior verify    # independently verify bundle integrity (read-only, no project context needed)
+avior init      # ✅ scaffold policy file skeleton and directory structure (idempotent)
+avior scan      # ✅ identify dependencies from renv.lock: classification + direct/transitive
+avior assess    # ✅ batch risk scoring via the engine adapter layer (riskmetric; --deep, --offline, --only)
+avior review    # ✅ generate decision-record stubs; validate completeness/sign-off
+avior test      # ⏳ M2: run targeted testthat tests for medium/high-risk packages
+avior bundle    # ⏳ M2: compile an immutable evidence bundle (report + traceability + fingerprint + manifest)
+avior check     # ✅ CI gate: drift + completeness + fail-closed integrity rules (exit 0/1/2)
+avior verify    # ⏳ M2: independently verify bundle integrity (read-only, no project context needed)
+```
+
+Every command supports `--format json` for machine consumption (FR-X-2); exit codes are 0 = pass, 1 = validation failure, 2 = execution error (FR-X-3).
+
+### Try it (development version)
+
+```r
+# not yet on CRAN — install from GitHub:
+# install.packages("pak"); pak::pak("Thynexa/AVIOR")
+library(avior)
+
+avior_init()     # scaffold validation/ in your project (rationale left as TODO on purpose)
+avior_scan()     # writes validation/inventory.yml from renv.lock + source scan
+avior_assess()   # writes validation/scores.yml (requires the riskmetric package)
+avior_review()   # decision stubs + completeness findings
+avior_check()    # the CI gate; also available as `Rscript exec/avior check --format json`
 ```
 
 ### Repository layout
 
 ```text
 AVIOR/
+├── DESCRIPTION · NAMESPACE          # R package metadata (R ≥ 4.1; Imports: cli, digest, jsonlite, yaml)
+├── R/                               # Implementation: canonical serialization (FR-X-8), config,
+│                                    #   lockfile+scan, engine adapter, assess (+cache), review, check, CLI
+├── tests/testthat/                  # ~490 tests; vendored fixture copy of the example project
+├── man/                             # Function reference
+├── exec/avior                       # CLI shim (Rscript)
+├── inst/templates/                  # avior.yml init template
+├── .github/workflows/ci.yml         # Linux / macOS / Windows + R 4.1 matrix
 ├── docs/                            # Project documentation
 │   ├── README.md                    # Documentation index
 │   ├── PRD.md                       # ⭐ Development baseline (controlled; see its revision log)
@@ -75,7 +102,7 @@ AVIOR/
 │   ├── product-design-review.md     # Design & roadmap review against the PRD baseline
 │   ├── r-regulatory-submission-research.md  # Methodology research
 │   ├── r-package-validation-strategy.md     # Validation strategy analysis
-│   └── superpowers/plans/           # Implementation plans (working docs)
+│   └── superpowers/plans/           # Implementation plans (M0 contract fixes + M1 — both completed)
 ├── examples/
 │   └── minimal-project/            # M0 hand-assembled example bundle (5 packages, all key scenarios)
 ├── .claude/skills/  ·  .agents/skills/   # Vendored "superpowers" skills for AI-assisted development
@@ -126,11 +153,13 @@ AVIOR 是一个面向受监管环境（FDA / EMA / NMPA 申报）的 **local-fir
 
 命名取自船底座 ε（Avior）——神话中阿尔戈号的龙骨，寓意验证体系的龙骨。
 
-> ### 📌 当前状态：设计定稿，尚未开始编码
+> ### 📌 当前状态：M1 核心管线已实现，下一阶段为 M2（证据编译）
 >
-> 本仓库目前处于 **规格与设计阶段**。它包含产品需求文档、方法论调研、评审记录，以及一份手工组装的最小样例证据包（对应 PRD 的 M0 里程碑）。**核心 R 包 `avior` 的实现代码尚未开始。**
+> `avior` R 包已实现 PRD 的 **M1 里程碑**：`init` / `scan` / `assess` / `review` 以及提前落地的 `check` CI 门禁——全程 TDD、对齐冻结的 v1.6 文件契约，约 490 个测试，产物字节级确定性，CI 覆盖 Linux / macOS / Windows 及 R 4.1 下限（PR #17–#19）。
 >
-> 开发基线是 [`PRD.md`](./docs/PRD.md)——所有后续开发以此为准，修订走 PR。
+> **证据编译半程尚未实现**：`test`、`bundle`、`verify` 与中文报告模板属 **M2** 里程碑。默认引擎为 riskmetric，评分需运行时安装该包（`check` 经静态指标注册表可离线校验策略）。
+>
+> 开发基线是 [`PRD.md`](./docs/PRD.md)——所有工作以此为准，修订走 PR。
 
 ### 它解决什么问题
 
@@ -151,23 +180,47 @@ AVIOR 把「依赖识别 → 风险评分 → 决策留痕 → 定向测试 → 
 | A2 | **证据即文件** | 策略、清单、评分、决策、报告全是版本库中的纯文本；git 历史即变更留痕，PR 即评审流 |
 | A3 | **签署留在客户 QMS** | 产出 signature-ready 证据包（SHA-256 清单保证完整性）；签署与受控归档走客户现有体系（Veeva / MasterControl / 纸质流程） |
 
-### 计划中的 CLI（V1 核心闭环）
+### CLI（V1 核心闭环）
 
 ```bash
-avior init      # 生成策略骨架与目录结构
-avior scan      # 从 renv.lock 识别依赖：三分类 + direct/transitive
-avior assess    # 经适配层（riskmetric）批量风险评分
-avior review    # 生成决策记录桩，团队填写用途/理由/署名（走 PR）
-avior test      # 运行中高风险包的定向 testthat 测试
-avior bundle    # 编译不可变证据包（报告 + 追溯矩阵 + 环境指纹 + 哈希清单）
-avior check     # CI 门禁：依赖漂移 + 完整性校验
-avior verify    # 独立校验证据包完整性（审计员只读，无需项目上下文）
+avior init      # ✅ 生成策略骨架与目录结构（幂等）
+avior scan      # ✅ 从 renv.lock 识别依赖：三分类 + direct/transitive
+avior assess    # ✅ 经适配层（riskmetric）批量风险评分（--deep / --offline / --only）
+avior review    # ✅ 生成决策记录桩 + 完整性/署名校验
+avior test      # ⏳ M2：运行中高风险包的定向 testthat 测试
+avior bundle    # ⏳ M2：编译不可变证据包（报告 + 追溯矩阵 + 环境指纹 + 哈希清单）
+avior check     # ✅ CI 门禁：漂移 + 完整性 + fail-closed 规则（退出码 0/1/2）
+avior verify    # ⏳ M2：独立校验证据包完整性（审计员只读，无需项目上下文）
+```
+
+所有命令支持 `--format json` 机器可读输出（FR-X-2）；退出码 0 = 通过、1 = 校验不通过、2 = 执行错误（FR-X-3）。
+
+### 试用（开发版）
+
+```r
+# 尚未上 CRAN，从 GitHub 安装：
+# install.packages("pak"); pak::pak("Thynexa/AVIOR")
+library(avior)
+
+avior_init()     # 在项目中生成 validation/ 骨架（rationale 刻意留 TODO）
+avior_scan()     # 从 renv.lock + 源码扫描写出 validation/inventory.yml
+avior_assess()   # 写出 validation/scores.yml（需要安装 riskmetric）
+avior_review()   # 决策桩 + 完整性 findings
+avior_check()    # CI 门禁；也可 `Rscript exec/avior check --format json`
 ```
 
 ### 仓库结构
 
 ```text
 AVIOR/
+├── DESCRIPTION · NAMESPACE          # R 包元数据（R ≥ 4.1；Imports：cli、digest、jsonlite、yaml）
+├── R/                               # 实现：规范化序列化（FR-X-8）、配置、锁文件+扫描、
+│                                    #   引擎适配层、assess（含缓存）、review、check、CLI
+├── tests/testthat/                  # 约 490 个测试；内置样例项目的 fixture 副本
+├── man/                             # 函数文档
+├── exec/avior                       # CLI 入口（Rscript）
+├── inst/templates/                  # avior.yml init 模板
+├── .github/workflows/ci.yml         # Linux / macOS / Windows + R 4.1 矩阵
 ├── docs/                            # 项目文档
 │   ├── README.md                    # 文档索引
 │   ├── PRD.md                       # ⭐ 开发基线（受控文档，版本见其修订记录）
@@ -176,7 +229,7 @@ AVIOR/
 │   ├── product-design-review.md     # 对照 PRD 基线的设计方向与路线评审
 │   ├── r-regulatory-submission-research.md  # 方法论调研
 │   ├── r-package-validation-strategy.md     # R 包验证策略分析
-│   └── superpowers/plans/           # 实施计划（工作文档）
+│   └── superpowers/plans/           # 实施计划（M0 契约修复 + M1，均已完成）
 ├── examples/
 │   └── minimal-project/            # M0 手工样例证据包（5 包，覆盖所有关键情形）
 ├── .claude/skills/  ·  .agents/skills/   # 供 AI 辅助开发的 superpowers 技能集

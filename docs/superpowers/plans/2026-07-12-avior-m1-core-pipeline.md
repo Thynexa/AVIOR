@@ -1,5 +1,7 @@
 # AVIOR M1 Core Pipeline Implementation Plan
 
+> **状态：✅ 已完成（2026-07-12）** — Tasks 1–7 经 PR #18、Tasks 8–12 经 PR #19 合并入 `main`；实现期七轮对抗评审的追加修复见两个 PR 的评审线程与提交记录。本文件保留为工作档案。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement PRD §9 milestone M1 — the `avior` R package with `init` / `scan` / `assess` / `review` plus the engine adapter layer, score cache, and the `check` gate — fully test-driven, against the v1.6 contracts.

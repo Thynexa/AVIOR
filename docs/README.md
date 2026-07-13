@@ -6,10 +6,10 @@
 | --- | --- | --- |
 | [`PRD.md`](PRD.md) | 《AVIOR — R 包验证证据编译器 PRD》 | **开发基线**（受控，修订走 PR） |
 | [`design-review.md`](design-review.md) | 《评审意见与聚焦规划》 | 历史讨论记录（示意值以 PRD §6.4 冻结契约为准） |
-| [`product-design-review.md`](product-design-review.md) | 《产品设计方向与路线评审（对照 PRD v1.5 基线）》 | 评审记录（处置以 PRD 修订 PR / issue 为准） |
+| [`product-design-review.md`](product-design-review.md) | 《产品设计方向与路线评审（对照 PRD v1.5 基线）》 | 评审记录（处置已落实：PRD v1.6 + M1 实现，见文末补记） |
 | [`ValiR-PRD.md`](ValiR-PRD.md) | 《ValiR PRD》v0.1 | 历史参考（已被 `PRD.md` 取代） |
 | [`r-package-validation-strategy.md`](r-package-validation-strategy.md) | 《R 包验证策略分析与实施方案》 | 参考文件 |
 | [`r-regulatory-submission-research.md`](r-regulatory-submission-research.md) | 《R 语言合规递交调研与实施方案》 | 调研资料 |
-| [`superpowers/plans/`](superpowers/plans/) | 实施计划（M0 契约修订、M1 核心管线） | 工作文档（随 PR 演进） |
+| [`superpowers/plans/`](superpowers/plans/) | 实施计划（M0 契约修订、M1 核心管线——均已完成；M2 路线纲要） | 工作文档 |
 
 示例项目见 [`../examples/minimal-project/`](../examples/minimal-project/)。
