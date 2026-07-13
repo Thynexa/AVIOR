@@ -1,5 +1,8 @@
 # Hand-maintained (no roxygen). Keep exports sorted; grow per implemented command.
+export(avior_assess)
+export(avior_check)
 export(avior_config_load)
 export(avior_init)
+export(avior_review)
 export(avior_scan)
 export(main)

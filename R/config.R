@@ -108,6 +108,9 @@ avior_config_load <- function(root = ".") {
       is.null(names(w)) || any(!nzchar(names(w)))) {
     config_abort("avior.yml: policy.weights must be named non-negative numbers")
   }
+  if (sum(wv) <= 0) {
+    config_abort("avior.yml: policy.weights must have a positive total weight")
+  }
   cfg$policy$weights <- as.list(stats::setNames(as.numeric(wv), names(w)))
 
   rt <- cfg$policy$risk_tiers

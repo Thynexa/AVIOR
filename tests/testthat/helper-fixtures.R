@@ -35,3 +35,26 @@ withr_defer_dir <- function(path, env) {
   call <- bquote(unlink(.(path), recursive = TRUE, force = TRUE))
   do.call(on.exit, list(call, add = TRUE), envir = env)
 }
+
+# Simulate a human re-reviewing after a re-assessment: rewrite each decision's
+# score_snapshot line to match the current scores.yml (engine + score + tier),
+# so a consistent project has no stale_score finding. Used by pipeline tests
+# that re-assess with a mock engine whose id/scores differ from the fixture's
+# hand-authored snapshots.
+resnapshot_decisions <- function(root) {
+  vdir <- file.path(root, "validation")
+  scores <- avior:::read_yaml_file(file.path(vdir, "scores.yml"))
+  eng <- trimws(paste(scores$engine$id, scores$engine$version))
+  for (f in list.files(file.path(vdir, "decisions"), pattern = "\\.yml$",
+                       full.names = TRUE)) {
+    d <- avior:::read_yaml_file(f)
+    sp <- scores$packages[[d$package]]
+    if (is.null(sp)) next
+    lines <- readLines(f, encoding = "UTF-8")
+    i <- grep("^score_snapshot:", lines)
+    lines[i] <- sprintf(
+      'score_snapshot: { score: %s, tier: %s, scored_at: "%s", engine: "%s" }',
+      avior:::avior_format_num(sp$score), sp$tier, scores$scored_at, eng)
+    writeLines(lines, f)
+  }
+}

@@ -67,8 +67,55 @@ run_command <- function(opts) {
              character(0)
            }))
     },
-    avior_abort(paste0("unknown command: ", opts$command, " (expected: init|scan)"))
+    assess = {
+      # consume this command's own flags, then reject anything left over
+      args <- opts$args
+      deep <- "--deep" %in% args; args <- args[args != "--deep"]
+      offline <- "--offline" %in% args; args <- args[args != "--offline"]
+      only <- NULL
+      i <- which(args == "--only")
+      if (length(i) > 1) avior_abort("--only given more than once")
+      if (length(i) == 1) {
+        if (i == length(args)) avior_abort("--only requires a package name")
+        only <- args[i + 1]
+        args <- args[-c(i, i + 1)]
+      }
+      reject_extra_args(args, "assess")
+      s <- avior_assess(".", only = only, deep = deep,
+                        network_available = !offline)
+      list(command = "assess", status = "ok",
+           engine = unclass(s$engine), run = unclass(s$run),
+           packages = length(s$packages),
+           na_metrics = json_array(unclass(s$na_metrics)))
+    },
+    review = {
+      reject_extra_args(opts$args, "review")
+      r <- avior_review(".")
+      # review reports but does not gate (check does); "findings" instead of
+      # "ok" so JSON consumers cannot mistake a flagged state for a clean one
+      list(command = "review",
+           status = if (length(r$findings) > 0) "findings" else "ok",
+           stubs_created = json_array(r$stubs_created), findings = r$findings)
+    },
+    check = {
+      reject_extra_args(opts$args, "check")
+      res <- avior_check(".")
+      c(list(command = "check"), res)
+    },
+    avior_abort(paste0("unknown command: ", opts$command,
+                       " (expected: init|scan|assess|review|check)"))
   )
+}
+
+print_findings <- function(findings) {
+  by_pkg <- split(findings, vapply(findings, function(f) f$package, character(1)))
+  for (pkg in sort_c(names(by_pkg))) {
+    cli::cli_alert_danger(pkg)
+    for (f in by_pkg[[pkg]]) {
+      cli::cli_bullets(c(" " = paste0("[", f$type, "] ", f$message),
+                         ">" = paste0("fix: ", f$fix %||% "-")))
+    }
+  }
 }
 
 main <- function(argv = commandArgs(trailingOnly = TRUE)) {
@@ -82,6 +129,7 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
       opts <- parse_argv(argv)
       run_command(opts)
     },
+    avior_na_error = function(e) e,
     avior_error = function(e) e,
     error = function(e) {
       structure(class = c("avior_unexpected_error", "avior_error",
@@ -92,24 +140,49 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
   )
 
   if (inherits(result, "avior_error")) {
+    # na_action: fail is a policy outcome, not a crash -> business exit 1
+    code <- if (inherits(result, "avior_na_error")) 1L else 2L
     if (identical(opts$format, "json")) {
-      emit_json(list(command = opts$command, status = "error",
+      emit_json(list(command = opts$command,
+                     status = if (code == 1L) "fail" else "error",
                      message = conditionMessage(result)))
     } else {
       cli::cli_alert_danger(conditionMessage(result))
     }
-    return(invisible(2L))
+    return(invisible(code))
   }
 
-  # business failure (e.g. an incomplete scan) -> exit 1; success -> 0
-  exit_code <- if (identical(result$status, "ok")) 0L else 1L
+  # business failures (check fail, incomplete scan) -> exit 1; review reports
+  # findings but does not gate, so its "findings" status stays exit 0
+  exit_code <- if (identical(result$status, "fail") ||
+                   identical(result$status, "incomplete")) 1L else 0L
 
   if (identical(opts$format, "json")) {
     emit_json(result)
     return(invisible(exit_code))
   }
 
-  if (identical(result$command, "scan")) {
+  if (identical(result$command, "check")) {
+    if (identical(result$status, "pass")) {
+      cli::cli_alert_success("check: all gates green")
+    } else {
+      cli::cli_alert_danger(paste0("check: ", length(result$findings),
+                                   " finding(s)"))
+      print_findings(result$findings)
+    }
+  } else if (identical(result$command, "assess")) {
+    cli::cli_alert_success(paste0(
+      "assess: ", result$packages, " package(s) scored with ",
+      result$engine$id, " ", result$engine$version,
+      if (length(result$na_metrics) > 0)
+        paste0(" (NA metrics: ", paste(result$na_metrics, collapse = ", "), ")")
+      else ""))
+  } else if (identical(result$command, "review")) {
+    cli::cli_alert_success(paste0(
+      "review: ", length(result$stubs_created), " stub(s) created, ",
+      length(result$findings), " finding(s)"))
+    if (length(result$findings) > 0) print_findings(result$findings)
+  } else if (identical(result$command, "scan")) {
     s <- result$summary
     msg <- paste0(
       "scan: ", s$total, " packages (", s$direct, " direct, ",
