@@ -101,6 +101,24 @@ test_that("cache: second run makes zero engine calls and is byte-identical", {
   expect_identical(readBin(p, "raw", file.size(p)), first)
 })
 
+test_that("invalid score cache entries are recomputed", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng)
+  cache <- list.files(file.path(root, "validation", ".cache", "scores"),
+                      full.names = TRUE)[1]
+
+  for (bad in list("metrics: [", "scalar")) {
+    writeLines(bad, cache)
+    before <- counter$n
+    expect_no_error(avior_assess(root, engine = eng))
+    expect_identical(counter$n, before + 1L)
+    expect_true(is.list(avior:::read_yaml_file(cache)))
+  }
+})
+
 test_that("cache: network-cause NA hits are re-scored when network is back (B2)", {
   vals <- mock_values()
   vals$jsonlite$downloads_1yr <- NULL

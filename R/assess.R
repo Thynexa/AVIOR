@@ -60,6 +60,16 @@ cache_key_path <- function(cfg, pkg, version, engine, metric_ids, deep) {
   file.path(cfg$paths$validation, ".cache", "scores", paste0(key, ".yml"))
 }
 
+read_score_cache <- function(path, metric_ids) {
+  entry <- tryCatch(read_yaml_file(path), error = function(e) NULL)
+  if (!is.list(entry) || !is.list(entry$metrics) ||
+      !setequal(names(entry$metrics), metric_ids) ||
+      (!is.null(entry$na_causes) && !is.list(entry$na_causes))) {
+    return(NULL)
+  }
+  entry
+}
+
 avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
                          refresh_na = TRUE, network_available = TRUE) {
   cfg <- avior_config_load(root)
@@ -104,9 +114,7 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
     entry <- NULL
     force_fresh <- !is.null(only) && p$name %in% only
     if (!force_fresh && file.exists(cache_file)) {
-      entry <- read_yaml_file(cache_file)
-      # defensive: a cached entry must cover the full policy metric set
-      if (!setequal(names(entry$metrics), metric_ids)) entry <- NULL
+      entry <- read_score_cache(cache_file, metric_ids)
       # improvable hit (FR-X-5): only network-cause NAs, only when online
       if (!is.null(entry) && refresh_na && network_available &&
           any(unlist(entry$na_causes) == "network")) {
