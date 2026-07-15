@@ -87,7 +87,8 @@ valid_test_results <- function(x) {
       is.list(row) && scalar_text(row$package) &&
         scalar_text(row$package_version) && scalar_text(row$file) &&
         (is.null(row$failed) ||
-          (is.numeric(row$failed) && length(row$failed) == 1L))
+          (is.numeric(row$failed) && length(row$failed) == 1L &&
+            !is.na(row$failed) && is.finite(row$failed)))
     }, logical(1)))))
 }
 

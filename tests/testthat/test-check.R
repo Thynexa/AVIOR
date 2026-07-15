@@ -135,6 +135,43 @@ test_that("invalid test-results.yml is a structured finding", {
   expect_identical(parsed$status, "fail")
 })
 
+test_that("non-finite failed counts are invalid test results", {
+  for (failed in c(".inf", ".nan")) {
+    root <- local_example_project()
+    writeLines(c(
+      "results:",
+      "  - package: jsonlite",
+      '    package_version: "1.8.8"',
+      "    file: test-json.R",
+      paste0("    failed: ", failed)
+    ), file.path(root, "validation", "test-results.yml"))
+    res <- avior_check(root)
+    expect_identical(res$status, "fail")
+    expect_true("invalid_test_results" %in% check_types(res))
+  }
+})
+
+test_that("CLI maps a non-finite failed count to validation failure", {
+  root <- local_example_project()
+  writeLines(c(
+    "results:",
+    "  - package: jsonlite",
+    '    package_version: "1.8.8"',
+    "    file: test-json.R",
+    "    failed: .nan"
+  ), file.path(root, "validation", "test-results.yml"))
+  old <- setwd(root)
+  on.exit(setwd(old), add = TRUE)
+  out <- capture.output(code <- suppressMessages(
+    main(c("check", "--format", "json"))))
+  parsed <- jsonlite::fromJSON(paste(out, collapse = "\n"),
+                               simplifyVector = FALSE)
+  expect_identical(code, 1L)
+  expect_identical(parsed$status, "fail")
+  expect_true("invalid_test_results" %in%
+                vapply(parsed$findings, `[[`, character(1), "type"))
+})
+
 test_that("missing test results for include_with_tests packages are red", {
   root <- local_example_project()
   unlink(file.path(root, "validation", "test-results.yml"))
