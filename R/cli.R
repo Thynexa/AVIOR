@@ -1,4 +1,4 @@
-# CLI entry (FR-X-2/3). `inst/exec/avior` shims into main(); command
+# exec/avior entry (FR-X-2/3). `inst/exec/avior` shims into main(); command
 # functions signal avior_error for execution problems (exit 2); business
 # failures (check red) map to exit 1 in the command handlers themselves.
 
@@ -29,6 +29,12 @@ emit_json <- function(x) {
 # (command/status/...) stay unboxed.
 json_array <- function(x) I(as.character(x))
 
+avior_command_names <- function() c("init", "scan", "assess", "review", "check")
+
+avior_command_hint <- function() paste(avior_command_names(), collapse = "|")
+
+avior_version <- function() as.character(utils::packageVersion("avior"))
+
 # Unknown/leftover arguments must not be silently ignored — a user believing
 # `avior scan --deep` took effect is a trust defect. Commands consume their
 # own flags; anything left is an execution error (exit 2).
@@ -41,10 +47,16 @@ reject_extra_args <- function(args, command) {
 
 run_command <- function(opts) {
   if (is.na(opts$command)) {
-    avior_abort("no command given (expected: init|scan)")
+    avior_abort(paste0("no command given (expected: ", avior_command_hint(), ")"))
   }
   switch(
     opts$command,
+    `--help` = list(
+      command = "help", status = "ok", usage = "avior <command> [options]",
+      commands = json_array(avior_command_names()),
+      options = json_array(c("--format text|json", "--help", "--version"))
+    ),
+    `--version` = list(command = "version", status = "ok", version = avior_version()),
     init = {
       reject_extra_args(opts$args, "init")
       res <- avior_init(".")
@@ -103,7 +115,7 @@ run_command <- function(opts) {
       c(list(command = "check"), res)
     },
     avior_abort(paste0("unknown command: ", opts$command,
-                       " (expected: init|scan|assess|review|check)"))
+                       " (expected: ", avior_command_hint(), ")"))
   )
 }
 
@@ -162,7 +174,13 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
     return(invisible(exit_code))
   }
 
-  if (identical(result$command, "check")) {
+  if (identical(result$command, "help")) {
+    cat(result$usage, "\n", sep = "")
+    cat("commands: ", paste(result$commands, collapse = " "), "\n", sep = "")
+    cat("options: ", paste(result$options, collapse = " "), "\n", sep = "")
+  } else if (identical(result$command, "version")) {
+    cat("avior ", result$version, "\n", sep = "")
+  } else if (identical(result$command, "check")) {
     if (identical(result$status, "pass")) {
       cli::cli_alert_success("check: all gates green")
     } else {
