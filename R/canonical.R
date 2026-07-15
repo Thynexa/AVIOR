@@ -51,9 +51,19 @@ to_utf8 <- function(x) {
 }
 
 write_lines_lf <- function(lines, path) {
-  con <- file(path, open = "wb")
-  on.exit(close(con))
+  tmp <- tempfile(".avior-write-", tmpdir = dirname(path))
+  con <- file(tmp, open = "wb")
+  closed <- FALSE
+  on.exit({
+    if (!closed) close(con)
+    if (file.exists(tmp)) unlink(tmp)
+  }, add = TRUE)
   writeLines(to_utf8(lines), con, sep = "\n", useBytes = TRUE)
+  close(con)
+  closed <- TRUE
+  if (!suppressWarnings(file.rename(tmp, path))) {
+    avior_abort(paste0("could not atomically replace artifact: ", path))
+  }
   invisible(path)
 }
 
