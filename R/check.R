@@ -78,6 +78,25 @@ check_policy <- function(cfg) {
   findings
 }
 
+valid_test_results <- function(x) {
+  scalar_text <- function(v) {
+    is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
+  }
+  is.list(x) && (is.null(x$results) ||
+    (is.list(x$results) && all(vapply(x$results, function(row) {
+      is.list(row) && scalar_text(row$package) &&
+        scalar_text(row$package_version) && scalar_text(row$file) &&
+        (is.null(row$failed) ||
+          (is.numeric(row$failed) && length(row$failed) == 1L))
+    }, logical(1)))))
+}
+
+invalid_test_results_finding <- function() {
+  finding("-", "invalid_test_results",
+          "test-results.yml is not valid YAML in the expected schema",
+          fix = "re-run `avior test` to regenerate test-results.yml")
+}
+
 check_test_results <- function(cfg, inventory) {
   findings <- list()
   add <- function(f) findings[[length(findings) + 1L]] <<- f
@@ -86,7 +105,15 @@ check_test_results <- function(cfg, inventory) {
     vapply(inventory$packages, function(p) p$name, character(1)))
 
   path <- file.path(cfg$paths$validation, "test-results.yml")
-  results <- if (file.exists(path)) read_yaml_file(path) else NULL
+  results_exist <- file.exists(path)
+  results <- if (results_exist) {
+    tryCatch(read_yaml_file(path), error = function(e) NULL)
+  } else {
+    NULL
+  }
+  if (results_exist && !valid_test_results(results)) {
+    return(list(invalid_test_results_finding()))
+  }
 
   tested <- character(0)
   for (r in results$results) {
