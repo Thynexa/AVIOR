@@ -91,6 +91,24 @@ test_that("command metadata helpers are authoritative for command errors", {
   expect_match(paste(unknown, collapse = " "), hint, fixed = TRUE)
 })
 
+test_that("metadata commands reject extra text and JSON arguments (exit 2)", {
+  for (command in c("--help", "--version")) {
+    capture.output(
+      text_code <- suppressMessages(main(c(command, "junk")))
+    )
+    expect_identical(text_code, 2L)
+
+    json_output <- capture.output(
+      json_code <- suppressMessages(main(c(command, "junk", "--format", "json")))
+    )
+    expect_identical(json_code, 2L)
+    expect_identical(
+      jsonlite::fromJSON(paste(json_output, collapse = "\n"))$status,
+      "error"
+    )
+  }
+})
+
 test_that("JSON collection fields are always arrays (0/1/2 elements)", {
   # 0 skipped: a clean scan must still emit skipped_files as []
   r0 <- local_example_project()

@@ -51,12 +51,18 @@ run_command <- function(opts) {
   }
   switch(
     opts$command,
-    `--help` = list(
-      command = "help", status = "ok", usage = "avior <command> [options]",
-      commands = json_array(avior_command_names()),
-      options = json_array(c("--format text|json", "--help", "--version"))
-    ),
-    `--version` = list(command = "version", status = "ok", version = avior_version()),
+    `--help` = {
+      reject_extra_args(opts$args, "--help")
+      list(
+        command = "help", status = "ok", usage = "avior <command> [options]",
+        commands = json_array(avior_command_names()),
+        options = json_array(c("--format text|json", "--help", "--version"))
+      )
+    },
+    `--version` = {
+      reject_extra_args(opts$args, "--version")
+      list(command = "version", status = "ok", version = avior_version())
+    },
     init = {
       reject_extra_args(opts$args, "init")
       res <- avior_init(".")
