@@ -30,6 +30,8 @@ jobs:
             stop("coverage below the 80% gate: ", round(pct, 2), "%")
           }
       - uses: actions/upload-artifact@v7
+        # the report is most useful when the gate fails: upload it anyway
+        if: always()
         with:
           name: cobertura
           path: cobertura.xml
