@@ -119,6 +119,87 @@ test_that("invalid score cache entries are recomputed", {
   }
 })
 
+test_that("semantically invalid score cache entries only recompute their package", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"),
+    full.names = TRUE
+  )
+  cache_entries <- lapply(cache_files, avior:::read_yaml_file)
+  cache <- cache_files[vapply(cache_entries, function(entry) {
+    identical(entry$package, "jsonlite")
+  }, logical(1))]
+  expect_length(cache, 1L)
+  pristine <- avior:::read_yaml_file(cache)
+
+  corruptions <- list(
+    character_metric = function(entry) {
+      entry$metrics$has_news <- "invalid"
+      entry
+    },
+    nested_metric = function(entry) {
+      entry$metrics$has_news <- list(NA_real_)
+      entry
+    },
+    out_of_range_metric = function(entry) {
+      entry$metrics$has_news <- 1.1
+      entry
+    },
+    cause_for_non_na_metric = function(entry) {
+      entry$na_causes <- list(has_news = "execution")
+      entry
+    },
+    unsupported_na_cause = function(entry) {
+      entry$metrics$has_news <- NA_real_
+      entry$na_causes <- list(has_news = "other")
+      entry
+    },
+    unnamed_na_cause = function(entry) {
+      entry$metrics$has_news <- NA_real_
+      entry$na_causes <- list("execution")
+      entry
+    }
+  )
+
+  for (corrupt in corruptions) {
+    avior:::write_yaml_canonical(corrupt(pristine), cache)
+    before <- counter$n
+    expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
+    expect_identical(counter$n, before + 1L)
+  }
+})
+
+test_that("NULL score cache metrics remain valid missing values", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"),
+    full.names = TRUE
+  )
+  cache_entries <- lapply(cache_files, avior:::read_yaml_file)
+  cache <- cache_files[vapply(cache_entries, function(entry) {
+    identical(entry$package, "jsonlite")
+  }, logical(1))]
+  entry <- avior:::read_yaml_file(cache)
+  entry$metrics["has_news"] <- list(NULL)
+  entry$na_metrics <- c(entry$na_metrics, "has_news")
+  entry$na_causes <- c(entry$na_causes, list(has_news = "execution"))
+  avior:::write_yaml_canonical(entry, cache)
+
+  before <- counter$n
+  expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
+  expect_identical(counter$n, before)
+})
+
 test_that("cache: network-cause NA hits are re-scored when network is back (B2)", {
   vals <- mock_values()
   vals$jsonlite$downloads_1yr <- NULL

@@ -1,4 +1,4 @@
-# exec/avior entry (FR-X-2/3). `inst/exec/avior` shims into main(); command
+# exec/avior entry (FR-X-2/3). Top-level `exec/avior` shims into main(); command
 # functions signal avior_error for execution problems (exit 2); business
 # failures (check red) map to exit 1 in the command handlers themselves.
 

@@ -63,9 +63,37 @@ cache_key_path <- function(cfg, pkg, version, engine, metric_ids, deep) {
 read_score_cache <- function(path, metric_ids) {
   entry <- tryCatch(read_yaml_file(path), error = function(e) NULL)
   if (!is.list(entry) || !is.list(entry$metrics) ||
+      length(entry$metrics) != length(metric_ids) ||
       !setequal(names(entry$metrics), metric_ids) ||
       (!is.null(entry$na_causes) && !is.list(entry$na_causes))) {
     return(NULL)
+  }
+
+  valid_metric <- function(value) {
+    if (is.null(value)) return(TRUE)
+    if (length(value) != 1L) return(FALSE)
+    if (is.na(value)) return(!is.nan(value))
+    is.numeric(value) && is.finite(value) && value >= 0 && value <= 1
+  }
+  if (!all(vapply(entry$metrics, valid_metric, logical(1)))) return(NULL)
+
+  missing_metric <- function(value) {
+    is.null(value) ||
+      (length(value) == 1L && is.na(value) && !is.nan(value))
+  }
+  na_metric_ids <- names(entry$metrics)[
+    vapply(entry$metrics, missing_metric, logical(1))
+  ]
+  if (length(entry$na_causes) > 0L) {
+    cause_names <- names(entry$na_causes)
+    valid_causes <- !is.null(cause_names) &&
+      all(nzchar(cause_names)) && !anyDuplicated(cause_names) &&
+      all(cause_names %in% na_metric_ids) &&
+      all(vapply(entry$na_causes, function(cause) {
+        is.character(cause) && length(cause) == 1L && !is.na(cause) &&
+          cause %in% c("network", "execution")
+      }, logical(1)))
+    if (!valid_causes) return(NULL)
   }
   entry
 }
