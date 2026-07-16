@@ -61,12 +61,25 @@ cache_key_path <- function(cfg, pkg, version, engine, metric_ids, deep) {
 }
 
 read_score_cache <- function(path, metric_ids) {
+  valid_cache_timestamp <- function(value) {
+    if (!is.character(value) || length(value) != 1L || is.na(value) ||
+        !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+               value)) {
+      return(FALSE)
+    }
+    parsed <- suppressWarnings(as.POSIXct(
+      value, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"
+    ))
+    !is.na(parsed) && identical(
+      format(parsed, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), value
+    )
+  }
+
   entry <- tryCatch(read_yaml_file(path), error = function(e) NULL)
   if (!is.list(entry) || !is.list(entry$metrics) ||
       length(entry$metrics) != length(metric_ids) ||
       !setequal(names(entry$metrics), metric_ids) ||
-      !is.character(entry$scored_at) || length(entry$scored_at) != 1L ||
-      is.na(entry$scored_at) || !nzchar(entry$scored_at)) {
+      !valid_cache_timestamp(entry$scored_at)) {
     return(NULL)
   }
 

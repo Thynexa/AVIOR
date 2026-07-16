@@ -184,6 +184,18 @@ test_that("semantically invalid score cache entries only recompute their package
     empty_scored_at = function(entry) {
       entry$scored_at <- ""
       entry
+    },
+    non_timestamp_scored_at = function(entry) {
+      entry$scored_at <- "not-a-timestamp"
+      entry
+    },
+    missing_utc_marker_scored_at = function(entry) {
+      entry$scored_at <- "2026-07-16T09:11:11"
+      entry
+    },
+    invalid_calendar_date_scored_at = function(entry) {
+      entry$scored_at <- "2026-02-31T00:00:00Z"
+      entry
     }
   )
 
@@ -193,6 +205,30 @@ test_that("semantically invalid score cache entries only recompute their package
     expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
     expect_identical(counter$n, before + 1L)
   }
+})
+
+test_that("canonical UTC cache timestamps remain cache hits", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"),
+    full.names = TRUE
+  )
+  cache_entries <- lapply(cache_files, avior:::read_yaml_file)
+  cache <- cache_files[vapply(cache_entries, function(entry) {
+    identical(entry$package, "jsonlite")
+  }, logical(1))]
+  entry <- avior:::read_yaml_file(cache)
+  entry$scored_at <- "2026-07-16T09:11:11Z"
+  avior:::write_yaml_canonical(entry, cache)
+
+  before <- counter$n
+  expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
+  expect_identical(counter$n, before)
 })
 
 test_that("NULL score cache metrics remain valid missing values", {
