@@ -77,6 +77,86 @@ riskmetric_metric_registry <- function() {
   )
 }
 
+riskmetric_api <- function() {
+  if (!requireNamespace("riskmetric", quietly = TRUE)) {
+    avior_abort(paste0(
+      "the riskmetric package is not installed; install it to run ",
+      "`avior assess` with the riskmetric engine"
+    ))
+  }
+  ns <- asNamespace("riskmetric")
+  list(
+    pkg_ref = getExportedValue("riskmetric", "pkg_ref"),
+    pkg_assess = getExportedValue("riskmetric", "pkg_assess"),
+    pkg_score = getExportedValue("riskmetric", "pkg_score"),
+    score_error_NA = getExportedValue("riskmetric", "score_error_NA"),
+    assessment_functions = function(ids) {
+      fnames <- paste0("assess_", ids)
+      missing <- fnames[!vapply(
+        fnames, exists, logical(1), envir = ns, inherits = FALSE
+      )]
+      if (length(missing)) {
+        avior_abort(paste0(
+          "riskmetric is missing assessment(s): ",
+          paste(missing, collapse = ", ")
+        ))
+      }
+      mget(fnames, envir = ns, inherits = FALSE)
+    }
+  )
+}
+
+riskmetric_score_ref <- function(ref, metric_ids, api) {
+  if (!length(metric_ids)) {
+    return(stats::setNames(numeric(), character()))
+  }
+  assessments <- api$assessment_functions(metric_ids)
+  columns <- vapply(seq_along(assessments), function(i) {
+    attr(assessments[[i]], "column_name") %||% metric_ids[[i]]
+  }, character(1))
+  scored <- api$pkg_score(
+    api$pkg_assess(ref, assessments = assessments),
+    error_handler = api$score_error_NA
+  )
+  stats::setNames(vapply(columns, function(column) {
+    value <- suppressWarnings(as.numeric(scored[[column]]))
+    if (length(value) == 1L) value else NA_real_
+  }, numeric(1)), metric_ids)
+}
+
+riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
+  api <- api %||% riskmetric_api()
+  ref <- api$pkg_ref(pkg)
+  actual <- as.character(ref$version)
+  if (!identical(actual, as.character(version))) {
+    avior_abort(paste0(
+      "riskmetric resolved ", pkg, " ", actual,
+      " but inventory requires ", version
+    ))
+  }
+
+  values <- stats::setNames(rep(NA_real_, length(metric_ids)), metric_ids)
+  local_ids <- setdiff(metric_ids, "remote_checks")
+  values[local_ids] <- riskmetric_score_ref(ref, local_ids, api)
+  if ("remote_checks" %in% metric_ids) {
+    values["remote_checks"] <- tryCatch({
+      remote <- api$pkg_ref(pkg, source = "pkg_cran_remote")
+      if (!identical(as.character(remote$version), as.character(version))) {
+        NA_real_
+      } else {
+        riskmetric_score_ref(remote, "remote_checks", api)[[1]]
+      }
+    }, error = function(e) NA_real_)
+  }
+
+  data.frame(
+    metric_id = metric_ids,
+    value = unname(values),
+    status = ifelse(is.na(values), "na", "ok"),
+    stringsAsFactors = FALSE
+  )
+}
+
 engine_riskmetric <- function() {
   version <- if (requireNamespace("riskmetric", quietly = TRUE)) {
     as.character(utils::packageVersion("riskmetric"))
@@ -88,26 +168,7 @@ engine_riskmetric <- function() {
     version = version,
     metrics = riskmetric_metric_registry,
     assess = function(pkg, version, metric_ids, opts) {
-      if (!requireNamespace("riskmetric", quietly = TRUE)) {
-        avior_abort(paste0(
-          "the riskmetric package is not installed; install it to run ",
-          "`avior assess` with the riskmetric engine"))
-      }
-      ref <- riskmetric::pkg_ref(pkg)
-      assessed <- riskmetric::pkg_assess(
-        ref, assessments = mget(paste0("assess_", metric_ids),
-                                envir = asNamespace("riskmetric")))
-      scored <- riskmetric::pkg_score(assessed)
-      vals <- vapply(metric_ids, function(id) {
-        v <- suppressWarnings(as.numeric(scored[[id]]))
-        if (length(v) != 1) NA_real_ else v
-      }, numeric(1))
-      data.frame(
-        metric_id = metric_ids,
-        value = unname(vals),
-        status = ifelse(is.na(vals), "na", "ok"),
-        stringsAsFactors = FALSE
-      )
+      riskmetric_assess(pkg, version, metric_ids, opts)
     }
   )
 }

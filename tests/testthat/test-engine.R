@@ -42,6 +42,91 @@ test_that("riskmetric assess aborts cleanly when riskmetric is unavailable", {
                class = "avior_error")
 })
 
+fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE) {
+  seen <- new.env(parent = emptyenv())
+  seen$sources <- character()
+  assessment_functions <- function(ids) {
+    out <- lapply(ids, function(id) {
+      f <- function(x) x
+      attr(f, "column_name") <- if (id == "last_30_bugs_status") {
+        "bugs_status"
+      } else {
+        id
+      }
+      f
+    })
+    names(out) <- paste0("assess_", ids)
+    out
+  }
+  list(
+    pkg_ref = function(pkg, source = NULL) {
+      seen$sources <- c(seen$sources, source %||% "default")
+      if (identical(source, "pkg_cran_remote") && remote_error) {
+        stop("offline")
+      }
+      list(name = pkg, version = version)
+    },
+    assessment_functions = assessment_functions,
+    pkg_assess = function(ref, assessments, ...) {
+      cols <- vapply(assessments, attr, character(1), "column_name")
+      stats::setNames(as.list(rep(1, length(cols))), cols)
+    },
+    pkg_score = function(x, error_handler) {
+      stats::setNames(as.list(rep(0.75, length(x))), names(x))
+    },
+    score_error_NA = function(...) NA_real_,
+    seen = seen
+  )
+}
+
+test_that("riskmetric seam maps score aliases in policy order", {
+  api <- fake_riskmetric_api()
+  ids <- c("has_news", "last_30_bugs_status", "has_vignettes")
+
+  res <- avior:::riskmetric_assess(
+    "demo", "1.0.0", ids, list(network_available = TRUE), api = api
+  )
+
+  expect_identical(names(res), c("metric_id", "value", "status"))
+  expect_identical(res$metric_id, ids)
+  expect_identical(res$value, rep(0.75, length(ids)))
+  expect_identical(res$status, rep("ok", length(ids)))
+})
+
+test_that("riskmetric seam uses a remote CRAN ref only for remote checks", {
+  api <- fake_riskmetric_api()
+
+  avior:::riskmetric_assess(
+    "demo", "1.0.0", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api = api
+  )
+
+  expect_identical(api$seen$sources, c("default", "pkg_cran_remote"))
+})
+
+test_that("riskmetric seam rejects a default ref version mismatch", {
+  api <- fake_riskmetric_api(version = "1.0.0")
+
+  expect_error(
+    avior:::riskmetric_assess("demo", "2.0.0", "has_news", list(), api),
+    regexp = "1[.]0[.]0.*2[.]0[.]0",
+    class = "avior_error"
+  )
+})
+
+test_that("riskmetric seam contains remote ref failures to remote checks", {
+  api <- fake_riskmetric_api(remote_error = TRUE)
+
+  res <- avior:::riskmetric_assess(
+    "demo", "1.0.0", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api
+  )
+
+  expect_identical(res$value[[1]], 0.75)
+  expect_true(is.na(res$value[[2]]))
+  expect_identical(res$status, c("ok", "na"))
+})
+
 test_that("mock engine returns the declared frame shape and marks NAs", {
   eng <- avior:::mock_engine(
     values = list(jsonlite = list(has_news = 0.9)),
