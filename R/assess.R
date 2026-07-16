@@ -65,13 +65,14 @@ read_score_cache <- function(path, metric_ids) {
   if (!is.list(entry) || !is.list(entry$metrics) ||
       length(entry$metrics) != length(metric_ids) ||
       !setequal(names(entry$metrics), metric_ids) ||
-      (!is.null(entry$na_causes) && !is.list(entry$na_causes))) {
+      !is.character(entry$scored_at) || length(entry$scored_at) != 1L ||
+      is.na(entry$scored_at) || !nzchar(entry$scored_at)) {
     return(NULL)
   }
 
   valid_metric <- function(value) {
     if (is.null(value)) return(TRUE)
-    if (length(value) != 1L) return(FALSE)
+    if (!is.atomic(value) || length(value) != 1L) return(FALSE)
     if (is.na(value)) return(!is.nan(value))
     is.numeric(value) && is.finite(value) && value >= 0 && value <= 1
   }
@@ -84,17 +85,36 @@ read_score_cache <- function(path, metric_ids) {
   na_metric_ids <- names(entry$metrics)[
     vapply(entry$metrics, missing_metric, logical(1))
   ]
-  if (length(entry$na_causes) > 0L) {
-    cause_names <- names(entry$na_causes)
-    valid_causes <- !is.null(cause_names) &&
-      all(nzchar(cause_names)) && !anyDuplicated(cause_names) &&
-      all(cause_names %in% na_metric_ids) &&
-      all(vapply(entry$na_causes, function(cause) {
+
+  disclosed_na <- entry$na_metrics
+  valid_na_metrics <- if (length(na_metric_ids) == 0L) {
+    is.null(disclosed_na) ||
+      (length(disclosed_na) == 0L &&
+        (is.character(disclosed_na) || is.list(disclosed_na)))
+  } else {
+    is.character(disclosed_na) &&
+      length(disclosed_na) == length(na_metric_ids) &&
+      all(!is.na(disclosed_na) & nzchar(disclosed_na)) &&
+      !anyDuplicated(disclosed_na) && setequal(disclosed_na, na_metric_ids)
+  }
+  if (!valid_na_metrics) return(NULL)
+
+  causes <- entry$na_causes
+  valid_causes <- if (length(na_metric_ids) == 0L) {
+    is.null(causes) || (is.list(causes) && length(causes) == 0L)
+  } else if (is.list(causes) && length(causes) == length(na_metric_ids)) {
+    cause_names <- names(causes)
+    !is.null(cause_names) &&
+      all(!is.na(cause_names) & nzchar(cause_names)) &&
+      !anyDuplicated(cause_names) && setequal(cause_names, na_metric_ids) &&
+      all(vapply(causes, function(cause) {
         is.character(cause) && length(cause) == 1L && !is.na(cause) &&
           cause %in% c("network", "execution")
       }, logical(1)))
-    if (!valid_causes) return(NULL)
+  } else {
+    FALSE
   }
+  if (!valid_causes) return(NULL)
   entry
 }
 
