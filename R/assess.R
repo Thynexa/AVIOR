@@ -173,18 +173,24 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
   for (p in pkgs) {
     cache_file <- cache_key_path(cfg, p$name, p$version, eng, metric_ids, deep)
     entry <- NULL
+    refresh_ids <- character(0)
     force_fresh <- !is.null(only) && p$name %in% only
     if (!force_fresh && file.exists(cache_file)) {
       entry <- read_score_cache(cache_file, metric_ids)
-      # improvable hit (FR-X-5): only network-cause NAs, only when online
-      if (!is.null(entry) && refresh_na && network_available &&
-          any(unlist(entry$na_causes) == "network")) {
-        entry <- NULL
+      # improvable hit (FR-X-5): re-run only the network-cause NA metrics,
+      # only when online. Refreshing just the NA slice keeps the healthy
+      # scores cached, so a metric that stays NA run after run (e.g.
+      # remote_checks for a lockfile pinned below the current CRAN release)
+      # costs one metric retry per run, not a full re-assessment.
+      if (!is.null(entry) && refresh_na && network_available) {
+        causes <- unlist(entry$na_causes)
+        refresh_ids <- intersect(names(causes)[causes == "network"], run_ids)
       }
     }
 
-    if (is.null(entry)) {
-      res <- eng$assess(p$name, p$version, run_ids,
+    if (is.null(entry) || length(refresh_ids) > 0) {
+      assess_ids <- if (is.null(entry)) run_ids else refresh_ids
+      res <- eng$assess(p$name, p$version, assess_ids,
                         list(deep = deep, network_available = network_available))
       # 7.2 adapter contract validation: values are goodness in [0,1] or NA
       bad <- !is.na(res$value) & (res$value < 0 | res$value > 1)
@@ -192,13 +198,21 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
         avior_abort(paste0("engine `", eng$id, "` returned values outside [0,1] for ",
                            p$name, ": ", paste(res$metric_id[bad], collapse = ", ")))
       }
-      values <- stats::setNames(as.list(res$value), res$metric_id)
-      values <- values[names(values) %in% metric_ids]   # ignore extraneous ids
+      fresh <- stats::setNames(as.list(res$value), res$metric_id)
+      # ignore extraneous ids; a refresh may only touch the metrics it re-ran
+      allowed <- if (is.null(entry)) metric_ids else refresh_ids
+      fresh <- fresh[names(fresh) %in% allowed]
+      values <- if (is.null(entry)) list() else entry$metrics
+      values[names(fresh)] <- fresh
       # policy metrics the engine did not return (or that were not run: the
       # execution tier without --deep) are NA and must be disclosed
       for (mid in setdiff(metric_ids, names(values))) values[[mid]] <- NA_real_
       values <- values[metric_ids]
-      nas <- names(values)[vapply(values, is.na, logical(1))]
+      # cached entries persist missing metrics as YAML null, so a merged
+      # value may be NULL as well as NA
+      nas <- names(values)[vapply(values, function(v) {
+        is.null(v) || isTRUE(is.na(v))
+      }, logical(1))]
       entry <- list(
         package = p$name,
         version = p$version,

@@ -330,6 +330,31 @@ test_that("cache: network-cause NA hits are re-scored when network is back (B2)"
   expect_identical(counter$n, n2)                   # all cache hits
 })
 
+test_that("network NA refresh re-runs only the improvable metrics", {
+  vals <- mock_values()
+  vals$jsonlite$downloads_1yr <- NULL   # network metric that stays NA
+  counter <- new.env(); counter$n <- 0L; counter$ids <- character(0)
+  eng <- avior:::mock_engine(vals, network_metrics = "downloads_1yr",
+                             execution_metrics = "covr_coverage",
+                             counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+  n1 <- counter$n
+
+  # second online run: the still-NA network metric is retried, but the
+  # healthy cached metrics must not be re-assessed (a metric that never
+  # resolves must not permanently disable the package's cache)
+  counter$ids <- character(0)
+  avior_assess(root, engine = eng, deep = TRUE)
+  expect_identical(counter$n, n1 + 1L)             # one refresh call
+  expect_identical(counter$ids, "downloads_1yr")   # scoped to the NA metric
+
+  s <- avior:::read_yaml_file(file.path(root, "validation", "scores.yml"))
+  expect_true("downloads_1yr" %in% unlist(s$packages$jsonlite$na_metrics))
+  expect_false(is.null(s$packages$jsonlite$score))
+})
+
 test_that("--only restricts fresh scoring to the named package (FR-ASSESS-5)", {
   counter <- new.env(); counter$n <- 0L
   eng <- avior:::mock_engine(mock_values(), execution_metrics = "covr_coverage",
