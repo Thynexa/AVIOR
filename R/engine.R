@@ -125,11 +125,25 @@ riskmetric_score_ref <- function(ref, metric_ids, api) {
   }, numeric(1)), metric_ids)
 }
 
+# R version strings treat `.` and `-` as interchangeable separators:
+# renv.lock records base64enc as "0.1-6" while pkg_ref()'s numeric_version
+# renders "0.1.6" — the same version, different bytes. Equality must be
+# judged under numeric_version semantics; a string that does not parse
+# (malformed metadata) falls back to exact comparison instead of aborting.
+same_pkg_version <- function(a, b) {
+  a <- as.character(a)
+  b <- as.character(b)
+  pa <- tryCatch(numeric_version(a), error = function(e) NULL)
+  pb <- tryCatch(numeric_version(b), error = function(e) NULL)
+  if (is.null(pa) || is.null(pb)) return(identical(a, b))
+  pa == pb
+}
+
 riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   api <- api %||% riskmetric_api()
   ref <- api$pkg_ref(pkg)
   actual <- as.character(ref$version)
-  if (!identical(actual, as.character(version))) {
+  if (!same_pkg_version(actual, version)) {
     avior_abort(paste0(
       "riskmetric resolved ", pkg, " ", actual,
       " but inventory requires ", version
@@ -142,7 +156,7 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   if ("remote_checks" %in% metric_ids) {
     values["remote_checks"] <- tryCatch({
       remote <- api$pkg_ref(pkg, source = "pkg_cran_remote")
-      if (!identical(as.character(remote$version), as.character(version))) {
+      if (!same_pkg_version(remote$version, version)) {
         NA_real_
       } else {
         riskmetric_score_ref(remote, "remote_checks", api)[[1]]

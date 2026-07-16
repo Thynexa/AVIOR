@@ -136,6 +136,19 @@ test_that("riskmetric seam uses a remote CRAN ref only for remote checks", {
   expect_identical(api$seen$sources, c("default", "pkg_cran_remote"))
 })
 
+test_that("riskmetric seam treats dash and dot version separators as equal", {
+  # renv.lock says 0.1-6, numeric_version renders 0.1.6: the same version
+  # must not abort the assessment (real-world hit: base64enc in CI)
+  api <- fake_riskmetric_api(version = "0.1.6")
+
+  res <- avior:::riskmetric_assess(
+    "demo", "0.1-6", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api
+  )
+
+  expect_identical(res$status, c("ok", "ok"))
+})
+
 test_that("riskmetric seam rejects a default ref version mismatch", {
   api <- fake_riskmetric_api(version = "1.0.0")
 
