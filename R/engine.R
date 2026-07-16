@@ -125,6 +125,9 @@ riskmetric_score_ref <- function(ref, metric_ids, api) {
   }, numeric(1)), metric_ids)
 }
 
+# R treats `.` and `-` as interchangeable package-version separators. Compare
+# with package_version semantics so lockfile values such as `0.1-6` match a
+# resolved `0.1.6`; malformed metadata fails closed instead of being accepted.
 same_package_version <- function(actual, required) {
   tryCatch({
     actual <- base::package_version(as.character(actual))
