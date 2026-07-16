@@ -146,6 +146,26 @@ test_that("riskmetric seam rejects a default ref version mismatch", {
   )
 })
 
+test_that("riskmetric seam accepts punctuation-equivalent default versions", {
+  api <- fake_riskmetric_api(version = "0.1.6")
+
+  res <- avior:::riskmetric_assess(
+    "base64enc", "0.1-6", "has_news", list(), api
+  )
+
+  expect_identical(res$value, 0.75)
+  expect_identical(res$status, "ok")
+})
+
+test_that("package version comparison fails closed on invalid versions", {
+  ns <- asNamespace("avior")
+  expect_true(exists("same_package_version", envir = ns, inherits = FALSE))
+  if (!exists("same_package_version", envir = ns, inherits = FALSE)) return()
+
+  expect_false(avior:::same_package_version("not-a-version", "1.0.0"))
+  expect_false(avior:::same_package_version(NA_character_, "1.0.0"))
+})
+
 test_that("riskmetric seam contains remote ref failures to remote checks", {
   api <- fake_riskmetric_api(remote_error = TRUE)
 
@@ -170,6 +190,18 @@ test_that("riskmetric seam contains remote version mismatches", {
   expect_identical(res$value[[1]], 0.75)
   expect_true(is.na(res$value[[2]]))
   expect_identical(res$status, c("ok", "na"))
+})
+
+test_that("riskmetric seam accepts punctuation-equivalent remote versions", {
+  api <- fake_riskmetric_api(version = "0.1-6", remote_version = "0.1.6")
+
+  res <- avior:::riskmetric_assess(
+    "base64enc", "0.1-6", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api
+  )
+
+  expect_identical(res$value, c(0.75, 0.75))
+  expect_identical(res$status, c("ok", "ok"))
 })
 
 test_that("riskmetric seam contains remote scoring failures", {
