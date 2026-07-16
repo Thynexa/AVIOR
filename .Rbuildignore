@@ -3,6 +3,8 @@
 ^\.claude$
 ^\.agents$
 ^\.github$
+^\.git$
+^\.superpowers$
 ^skills-lock\.json$
 ^\.gitignore$
 ^\.lintr$
