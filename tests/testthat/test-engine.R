@@ -42,16 +42,21 @@ test_that("riskmetric assess aborts cleanly when riskmetric is unavailable", {
                class = "avior_error")
 })
 
-fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE) {
+fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE,
+                                missing_column_name = character(),
+                                remote_version = version,
+                                remote_score_error = FALSE) {
   seen <- new.env(parent = emptyenv())
   seen$sources <- character()
   assessment_functions <- function(ids) {
     out <- lapply(ids, function(id) {
       f <- function(x) x
-      attr(f, "column_name") <- if (id == "last_30_bugs_status") {
-        "bugs_status"
-      } else {
-        id
+      if (!id %in% missing_column_name) {
+        attr(f, "column_name") <- if (id == "last_30_bugs_status") {
+          "bugs_status"
+        } else {
+          id
+        }
       }
       f
     })
@@ -64,14 +69,30 @@ fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE) {
       if (identical(source, "pkg_cran_remote") && remote_error) {
         stop("offline")
       }
-      list(name = pkg, version = version)
+      list(
+        name = pkg,
+        version = if (identical(source, "pkg_cran_remote")) {
+          remote_version
+        } else {
+          version
+        },
+        source = source %||% "default"
+      )
     },
     assessment_functions = assessment_functions,
     pkg_assess = function(ref, assessments, ...) {
-      cols <- vapply(assessments, attr, character(1), "column_name")
-      stats::setNames(as.list(rep(1, length(cols))), cols)
+      cols <- vapply(seq_along(assessments), function(i) {
+        attr(assessments[[i]], "column_name") %||% names(assessments)[[i]]
+      }, character(1))
+      out <- stats::setNames(as.list(rep(1, length(cols))), cols)
+      attr(out, "source") <- ref$source
+      out
     },
     pkg_score = function(x, error_handler) {
+      if (remote_score_error &&
+          identical(attr(x, "source"), "pkg_cran_remote")) {
+        stop("remote scoring failed")
+      }
       stats::setNames(as.list(rep(0.75, length(x))), names(x))
     },
     score_error_NA = function(...) NA_real_,
@@ -91,6 +112,17 @@ test_that("riskmetric seam maps score aliases in policy order", {
   expect_identical(res$metric_id, ids)
   expect_identical(res$value, rep(0.75, length(ids)))
   expect_identical(res$status, rep("ok", length(ids)))
+})
+
+test_that("riskmetric seam falls back to the policy id for unnamed columns", {
+  api <- fake_riskmetric_api(missing_column_name = "has_news")
+
+  res <- avior:::riskmetric_assess(
+    "demo", "1.0.0", "has_news", list(), api = api
+  )
+
+  expect_identical(res$value, 0.75)
+  expect_identical(res$status, "ok")
 })
 
 test_that("riskmetric seam uses a remote CRAN ref only for remote checks", {
@@ -116,6 +148,32 @@ test_that("riskmetric seam rejects a default ref version mismatch", {
 
 test_that("riskmetric seam contains remote ref failures to remote checks", {
   api <- fake_riskmetric_api(remote_error = TRUE)
+
+  res <- avior:::riskmetric_assess(
+    "demo", "1.0.0", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api
+  )
+
+  expect_identical(res$value[[1]], 0.75)
+  expect_true(is.na(res$value[[2]]))
+  expect_identical(res$status, c("ok", "na"))
+})
+
+test_that("riskmetric seam contains remote version mismatches", {
+  api <- fake_riskmetric_api(remote_version = "2.0.0")
+
+  res <- avior:::riskmetric_assess(
+    "demo", "1.0.0", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api
+  )
+
+  expect_identical(res$value[[1]], 0.75)
+  expect_true(is.na(res$value[[2]]))
+  expect_identical(res$status, c("ok", "na"))
+})
+
+test_that("riskmetric seam contains remote scoring failures", {
+  api <- fake_riskmetric_api(remote_score_error = TRUE)
 
   res <- avior:::riskmetric_assess(
     "demo", "1.0.0", c("has_news", "remote_checks"),

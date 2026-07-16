@@ -114,6 +114,7 @@ riskmetric_score_ref <- function(ref, metric_ids, api) {
   columns <- vapply(seq_along(assessments), function(i) {
     attr(assessments[[i]], "column_name") %||% metric_ids[[i]]
   }, character(1))
+  names(assessments) <- columns
   scored <- api$pkg_score(
     api$pkg_assess(ref, assessments = assessments),
     error_handler = api$score_error_NA

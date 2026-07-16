@@ -9,6 +9,9 @@ on:
         required: true
         default: '50'
 
+permissions:
+  contents: read
+
 jobs:
   riskmetric-smoke:
     runs-on: ubuntu-latest
@@ -17,6 +20,8 @@ jobs:
       AVIOR_SPIKE_PACKAGES: ${{ inputs.packages || '5' }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: release
