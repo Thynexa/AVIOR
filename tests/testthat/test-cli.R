@@ -53,6 +53,11 @@ json_of <- function(argv) {
   jsonlite::fromJSON(paste(out, collapse = "\n"), simplifyVector = FALSE)
 }
 
+package_version_from_description <- function() {
+  description <- system.file("DESCRIPTION", package = "avior")
+  as.character(read.dcf(description)[1, "Version"])
+}
+
 test_that("--help and --version are successful text and JSON commands", {
   help_text <- capture.output(help_code <- main("--help"))
   expect_identical(help_code, 0L)
@@ -62,7 +67,7 @@ test_that("--help and --version are successful text and JSON commands", {
   version_text <- capture.output(version_code <- main("--version"))
   expect_identical(version_code, 0L)
   expect_match(paste(version_text, collapse = ""),
-               read.dcf(testthat::test_path("..", "..", "DESCRIPTION"))[1, "Version"],
+               package_version_from_description(),
                fixed = TRUE)
 
   help_json <- json_of(c("--help", "--format", "json"))
@@ -76,11 +81,10 @@ test_that("--help and --version are successful text and JSON commands", {
 test_that("command metadata helpers are authoritative for command errors", {
   commands <- c("init", "scan", "assess", "review", "check")
   hint <- "init|scan|assess|review|check"
-  description <- testthat::test_path("..", "..", "DESCRIPTION")
 
   expect_identical(avior_command_names(), commands)
   expect_identical(avior_command_hint(), hint)
-  expect_identical(avior_version(), as.character(read.dcf(description)[1, "Version"]))
+  expect_identical(avior_version(), package_version_from_description())
 
   no_command <- capture.output(no_command_code <- main(character(0)), type = "message")
   expect_identical(no_command_code, 2L)
