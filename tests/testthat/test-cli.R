@@ -54,7 +54,7 @@ json_of <- function(argv) {
 }
 
 package_version_from_description <- function() {
-  description <- system.file("DESCRIPTION", package = "avior")
+  description <- system.file("DESCRIPTION", package = "avior", mustWork = TRUE)
   as.character(read.dcf(description)[1, "Version"])
 }
 
