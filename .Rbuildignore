@@ -5,5 +5,6 @@
 ^\.github$
 ^skills-lock\.json$
 ^\.gitignore$
+^\.lintr$
 ^README\.md$
 ^tools$
