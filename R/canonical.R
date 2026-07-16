@@ -50,10 +50,35 @@ to_utf8 <- function(x) {
   x
 }
 
+close_file_connection <- function(con) close(con)
+
+rename_file <- function(from, to) file.rename(from, to)
+
 write_lines_lf <- function(lines, path) {
-  con <- file(path, open = "wb")
-  on.exit(close(con))
+  tmp <- tempfile(".avior-write-", tmpdir = dirname(path))
+  con <- file(tmp, open = "wb")
+  closed <- FALSE
+  on.exit({
+    try(if (!closed) close_file_connection(con), silent = TRUE)
+    try(if (file.exists(tmp)) unlink(tmp), silent = TRUE)
+  }, add = TRUE)
   writeLines(to_utf8(lines), con, sep = "\n", useBytes = TRUE)
+  tryCatch(
+    close_file_connection(con),
+    error = function(e) {
+      avior_abort(paste0("could not close artifact: ", path))
+    }
+  )
+  closed <- TRUE
+  renamed <- tryCatch(
+    suppressWarnings(rename_file(tmp, path)),
+    error = function(e) {
+      avior_abort(paste0("could not atomically replace artifact: ", path))
+    }
+  )
+  if (!isTRUE(renamed)) {
+    avior_abort(paste0("could not atomically replace artifact: ", path))
+  }
   invisible(path)
 }
 

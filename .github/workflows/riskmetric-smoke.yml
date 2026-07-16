@@ -1,0 +1,32 @@
+name: Riskmetric smoke
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: Number of installed contributed packages to assess
+        required: true
+        default: '50'
+
+permissions:
+  contents: read
+
+jobs:
+  riskmetric-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      AVIOR_SPIKE_PACKAGES: ${{ inputs.packages || '5' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: local::., any::riskmetric
+          needs: check
+      - run: Rscript tools/riskmetric-spike.R

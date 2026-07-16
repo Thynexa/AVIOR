@@ -101,6 +101,204 @@ test_that("cache: second run makes zero engine calls and is byte-identical", {
   expect_identical(readBin(p, "raw", file.size(p)), first)
 })
 
+test_that("invalid score cache entries are recomputed", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng)
+  cache <- list.files(file.path(root, "validation", ".cache", "scores"),
+                      full.names = TRUE)[1]
+
+  for (bad in list("metrics: [", "scalar")) {
+    writeLines(bad, cache)
+    before <- counter$n
+    expect_no_error(avior_assess(root, engine = eng))
+    expect_identical(counter$n, before + 1L)
+    expect_true(is.list(avior:::read_yaml_file(cache)))
+  }
+})
+
+test_that("semantically invalid score cache entries only recompute their package", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"),
+    full.names = TRUE
+  )
+  cache_entries <- lapply(cache_files, avior:::read_yaml_file)
+  cache <- cache_files[vapply(cache_entries, function(entry) {
+    identical(entry$package, "jsonlite")
+  }, logical(1))]
+  expect_length(cache, 1L)
+  pristine <- avior:::read_yaml_file(cache)
+
+  corruptions <- list(
+    character_metric = function(entry) {
+      entry$metrics$has_news <- "invalid"
+      entry
+    },
+    nested_metric = function(entry) {
+      entry$metrics$has_news <- list(NA_real_)
+      entry
+    },
+    out_of_range_metric = function(entry) {
+      entry$metrics$has_news <- 1.1
+      entry
+    },
+    cause_for_non_na_metric = function(entry) {
+      entry$na_causes <- list(has_news = "execution")
+      entry
+    },
+    unsupported_na_cause = function(entry) {
+      entry$metrics$has_news <- NA_real_
+      entry$na_metrics <- "has_news"
+      entry$na_causes <- list(has_news = "other")
+      entry
+    },
+    unnamed_na_cause = function(entry) {
+      entry$metrics$has_news <- NA_real_
+      entry$na_metrics <- "has_news"
+      entry$na_causes <- list("execution")
+      entry
+    },
+    missing_na_metric = function(entry) {
+      entry$metrics$has_news <- NA_real_
+      entry$na_causes <- list(has_news = "execution")
+      entry
+    },
+    false_na_metric = function(entry) {
+      entry$na_metrics <- "has_news"
+      entry
+    },
+    duplicate_na_metric = function(entry) {
+      entry$metrics$has_news <- NA_real_
+      entry$na_metrics <- c("has_news", "has_news")
+      entry$na_causes <- list(has_news = "execution")
+      entry
+    },
+    empty_scored_at = function(entry) {
+      entry$scored_at <- ""
+      entry
+    },
+    non_timestamp_scored_at = function(entry) {
+      entry$scored_at <- "not-a-timestamp"
+      entry
+    },
+    missing_utc_marker_scored_at = function(entry) {
+      entry$scored_at <- "2026-07-16T09:11:11"
+      entry
+    },
+    invalid_calendar_date_scored_at = function(entry) {
+      entry$scored_at <- "2026-02-31T00:00:00Z"
+      entry
+    }
+  )
+
+  for (corrupt in corruptions) {
+    avior:::write_yaml_canonical(corrupt(pristine), cache)
+    before <- counter$n
+    expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
+    expect_identical(counter$n, before + 1L)
+  }
+})
+
+test_that("canonical UTC cache timestamps remain cache hits", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"),
+    full.names = TRUE
+  )
+  cache_entries <- lapply(cache_files, avior:::read_yaml_file)
+  cache <- cache_files[vapply(cache_entries, function(entry) {
+    identical(entry$package, "jsonlite")
+  }, logical(1))]
+  entry <- avior:::read_yaml_file(cache)
+  entry$scored_at <- "2026-07-16T09:11:11Z"
+  avior:::write_yaml_canonical(entry, cache)
+
+  before <- counter$n
+  expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
+  expect_identical(counter$n, before)
+})
+
+test_that("NULL score cache metrics remain valid missing values", {
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(mock_values(), counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"),
+    full.names = TRUE
+  )
+  cache_entries <- lapply(cache_files, avior:::read_yaml_file)
+  cache <- cache_files[vapply(cache_entries, function(entry) {
+    identical(entry$package, "jsonlite")
+  }, logical(1))]
+  entry <- avior:::read_yaml_file(cache)
+  entry$metrics["has_news"] <- list(NULL)
+  entry$na_metrics <- c(entry$na_metrics, "has_news")
+  entry$na_causes <- c(entry$na_causes, list(has_news = "execution"))
+  avior:::write_yaml_canonical(entry, cache)
+
+  before <- counter$n
+  expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
+  expect_identical(counter$n, before)
+})
+
+test_that("missing network NA causes invalidate only the damaged package cache", {
+  vals <- mock_values()
+  vals$jsonlite$downloads_1yr <- NULL
+  vals$jsonlite$covr_coverage <- NULL
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(
+    vals,
+    network_metrics = "downloads_1yr",
+    execution_metrics = "covr_coverage",
+    counter = counter
+  )
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"),
+    full.names = TRUE
+  )
+  cache_entries <- lapply(cache_files, avior:::read_yaml_file)
+  cache <- cache_files[vapply(cache_entries, function(entry) {
+    identical(entry$package, "jsonlite")
+  }, logical(1))]
+  expect_length(cache, 1L)
+  pristine <- avior:::read_yaml_file(cache)
+  expect_setequal(unlist(pristine$na_metrics),
+                  c("downloads_1yr", "covr_coverage"))
+
+  missing_causes <- list(
+    all = list(),
+    network_key = pristine$na_causes["covr_coverage"]
+  )
+  for (causes in missing_causes) {
+    entry <- pristine
+    entry$na_causes <- causes
+    avior:::write_yaml_canonical(entry, cache)
+    before <- counter$n
+    expect_no_error(avior_assess(root, engine = eng, deep = TRUE))
+    expect_identical(counter$n, before + 1L)
+  }
+})
+
 test_that("cache: network-cause NA hits are re-scored when network is back (B2)", {
   vals <- mock_values()
   vals$jsonlite$downloads_1yr <- NULL
@@ -130,6 +328,31 @@ test_that("cache: network-cause NA hits are re-scored when network is back (B2)"
   n2 <- counter$n
   avior_assess(root2, engine = eng2, deep = FALSE)
   expect_identical(counter$n, n2)                   # all cache hits
+})
+
+test_that("network NA refresh re-runs only the improvable metrics", {
+  vals <- mock_values()
+  vals$jsonlite$downloads_1yr <- NULL   # network metric that stays NA
+  counter <- new.env(); counter$n <- 0L; counter$ids <- character(0)
+  eng <- avior:::mock_engine(vals, network_metrics = "downloads_1yr",
+                             execution_metrics = "covr_coverage",
+                             counter = counter)
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+  n1 <- counter$n
+
+  # second online run: the still-NA network metric is retried, but the
+  # healthy cached metrics must not be re-assessed (a metric that never
+  # resolves must not permanently disable the package's cache)
+  counter$ids <- character(0)
+  avior_assess(root, engine = eng, deep = TRUE)
+  expect_identical(counter$n, n1 + 1L)             # one refresh call
+  expect_identical(counter$ids, "downloads_1yr")   # scoped to the NA metric
+
+  s <- avior:::read_yaml_file(file.path(root, "validation", "scores.yml"))
+  expect_true("downloads_1yr" %in% unlist(s$packages$jsonlite$na_metrics))
+  expect_false(is.null(s$packages$jsonlite$score))
 })
 
 test_that("--only restricts fresh scoring to the named package (FR-ASSESS-5)", {

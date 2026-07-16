@@ -8,6 +8,8 @@
 
 [![Status](https://img.shields.io/badge/status-M1%20implemented%20·%20M2%20in%20planning-green)](./docs/PRD.md)
 [![CI](https://github.com/Thynexa/AVIOR/actions/workflows/ci.yml/badge.svg)](https://github.com/Thynexa/AVIOR/actions/workflows/ci.yml)
+[![Coverage](https://github.com/Thynexa/AVIOR/actions/workflows/coverage.yml/badge.svg)](https://github.com/Thynexa/AVIOR/actions/workflows/coverage.yml)
+[![Lint](https://github.com/Thynexa/AVIOR/actions/workflows/lint.yml/badge.svg)](https://github.com/Thynexa/AVIOR/actions/workflows/lint.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](#license--许可)
 [![Language](https://img.shields.io/badge/implementation-R%20%E2%89%A5%204.1-276DC3)](./docs/PRD.md)
 [![PRD](https://img.shields.io/badge/PRD-development%20baseline-informational)](./docs/PRD.md)
