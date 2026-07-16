@@ -62,12 +62,51 @@ test_that("write_lines_lf atomically replaces and cleans temporary files", {
   expect_identical(readLines(path, encoding = "UTF-8"), c("new", "内容"))
   raw <- readBin(path, "raw", file.size(path))
   expect_false(as.raw(0x0D) %in% raw)
-  expect_length(list.files(parent, pattern = "^[.]avior-write-"), 0L)
+  expect_length(list.files(parent, all.files = TRUE,
+                           pattern = "^[.]avior-write-"), 0L)
 
   bad_target <- file.path(parent, "directory-target")
   dir.create(bad_target)
   expect_error(avior:::write_lines_lf("x", bad_target), class = "avior_error")
-  expect_length(list.files(parent, pattern = "^[.]avior-write-"), 0L)
+  expect_length(list.files(parent, all.files = TRUE,
+                           pattern = "^[.]avior-write-"), 0L)
+})
+
+test_that("write_lines_lf cleans temporary files when close fails", {
+  parent <- tempfile("atomic-close-parent-")
+  dir.create(parent)
+  on.exit(unlink(parent, recursive = TRUE), add = TRUE)
+  path <- file.path(parent, "artifact.yml")
+
+  testthat::local_mocked_bindings(
+    close_file_connection = function(con) {
+      base::close(con)
+      stop("simulated close failure")
+    },
+    .package = "avior"
+  )
+
+  expect_error(avior:::write_lines_lf("x", path), class = "avior_error")
+  expect_length(list.files(parent, all.files = TRUE,
+                           pattern = "^[.]avior-write-"), 0L)
+})
+
+test_that("write_lines_lf cleans temporary files when rename throws", {
+  parent <- tempfile("atomic-rename-parent-")
+  dir.create(parent)
+  on.exit(unlink(parent, recursive = TRUE), add = TRUE)
+  path <- file.path(parent, "artifact.yml")
+  writeLines("old", path)
+
+  testthat::local_mocked_bindings(
+    rename_file = function(from, to) stop("simulated rename failure"),
+    .package = "avior"
+  )
+
+  expect_error(avior:::write_lines_lf("new", path), class = "avior_error")
+  expect_identical(readLines(path), "old")
+  expect_length(list.files(parent, all.files = TRUE,
+                           pattern = "^[.]avior-write-"), 0L)
 })
 
 # --- YAML emitter -----------------------------------------------------------
