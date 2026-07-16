@@ -6,5 +6,6 @@
 ^skills-lock\.json$
 ^\.gitignore$
 ^\.lintr$
+^renv\.lock$
 ^README\.md$
 ^tools$
