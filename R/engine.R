@@ -140,6 +140,15 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   api <- api %||% riskmetric_api()
   ref <- api$pkg_ref(pkg)
   actual <- as.character(ref$version)
+  # pkg_ref() on a package absent from the assessment library yields a ref
+  # without a version; "not installed" must be named as the cause instead of
+  # degrading into a mismatch message with an empty version string.
+  if (length(actual) != 1 || is.na(actual) || !nzchar(actual)) {
+    avior_abort(paste0(
+      pkg, " is not installed in the assessment library",
+      " (inventory requires ", version, ")"
+    ))
+  }
   if (!same_package_version(actual, version)) {
     avior_abort(paste0(
       "riskmetric resolved ", pkg, " ", actual,

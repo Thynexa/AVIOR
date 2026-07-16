@@ -25,6 +25,10 @@ jobs:
           cov <- covr::package_coverage(quiet = FALSE, clean = FALSE)
           print(cov)
           covr::to_cobertura(cov)
+          pct <- covr::percent_coverage(cov)
+          if (pct < 80) {
+            stop("coverage below the 80% gate: ", round(pct, 2), "%")
+          }
       - uses: actions/upload-artifact@v7
         with:
           name: cobertura

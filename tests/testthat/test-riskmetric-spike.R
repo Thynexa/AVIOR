@@ -138,9 +138,14 @@ test_that("riskmetric smoke checkout does not persist credentials", {
   skip_if_not(file.exists(workflow_path), "workflow is excluded from built packages")
   workflow <- yaml::read_yaml(workflow_path)
   steps <- workflow$jobs[["riskmetric-smoke"]]$steps
+  # match any checkout major so a version bump cannot silently drop this
+  # security assertion (or fail it with an opaque subscript error)
   checkout <- Filter(
-    function(step) identical(step$uses, "actions/checkout@v6"), steps
-  )[[1]]
+    function(step) is.character(step$uses) &&
+      startsWith(step$uses, "actions/checkout@"),
+    steps
+  )
 
-  expect_identical(checkout$with[["persist-credentials"]], FALSE)
+  expect_length(checkout, 1L)
+  expect_identical(checkout[[1]]$with[["persist-credentials"]], FALSE)
 })

@@ -149,6 +149,18 @@ test_that("riskmetric seam treats dash and dot version separators as equal", {
   expect_identical(res$status, c("ok", "ok"))
 })
 
+test_that("riskmetric seam names 'not installed' instead of a degraded mismatch", {
+  # a lockfile package absent from the assessment library resolves to a ref
+  # without a version; the error must say so, not "resolved <pkg>  but ..."
+  api <- fake_riskmetric_api(version = NULL)
+
+  expect_error(
+    avior:::riskmetric_assess("demo", "1.0.0", "has_news", list(), api),
+    regexp = "not installed in the assessment library",
+    class = "avior_error"
+  )
+})
+
 test_that("riskmetric seam rejects a default ref version mismatch", {
   api <- fake_riskmetric_api(version = "1.0.0")
 
