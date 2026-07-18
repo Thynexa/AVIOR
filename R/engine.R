@@ -146,6 +146,19 @@ known_package_version <- function(v) {
     tryCatch({ base::package_version(v); TRUE }, error = function(e) FALSE)
 }
 
+# Gated diagnostics for the remote_checks containment branches (#27 root
+# cause): every branch that ends in a bare NA is externally identical, so a
+# spike/smoke run cannot tell a ref failure from an unreadable version from
+# a scoring failure. Set AVIOR_DIAG_REMOTE=1 (the riskmetric-smoke workflow
+# does) to have the adapter name the branch on stderr without touching the
+# assessment result.
+remote_checks_diag <- function(pkg, note) {
+  if (nzchar(Sys.getenv("AVIOR_DIAG_REMOTE"))) {
+    message("avior remote_checks diag [", pkg, "]: ", note)
+  }
+  invisible()
+}
+
 riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   api <- api %||% riskmetric_api()
   ref <- api$pkg_ref(pkg)
@@ -181,9 +194,18 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   values[local_ids] <- riskmetric_score_ref(ref, local_ids, api)
   if ("remote_checks" %in% metric_ids) {
     remote <- tryCatch(api$pkg_ref(pkg, source = "pkg_cran_remote"),
-                       error = function(e) NULL)
+                       error = function(e) {
+                         remote_checks_diag(pkg, paste0(
+                           "pkg_cran_remote ref failed: ", conditionMessage(e)))
+                         NULL
+                       })
     remote_version_known <- !is.null(remote) &&
       known_package_version(remote$version)
+    if (!is.null(remote) && !remote_version_known) {
+      remote_checks_diag(pkg, paste0(
+        "remote version unreadable: ",
+        paste(deparse(remote$version), collapse = " ")))
+    }
     if (remote_version_known && !same_package_version(remote$version, target)) {
       # CONFIRMED containment: CRAN latest is a different release than the
       # pinned version, so its check results must not be attributed here —
@@ -191,11 +213,25 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
       # out of the cache refresh rule (a retry per run would defeat the
       # cache forever); a lockfile version bump changes the cache key and
       # re-assesses naturally.
+      remote_checks_diag(pkg, paste0("confirmed version mismatch: remote ",
+                                     as.character(remote$version),
+                                     " vs required ", target))
       causes["remote_checks"] <- "version"
     } else if (remote_version_known) {
+      scoring_error <- FALSE
       values["remote_checks"] <- tryCatch(
         riskmetric_score_ref(remote, "remote_checks", api)[[1]],
-        error = function(e) NA_real_)
+        error = function(e) {
+          scoring_error <<- TRUE
+          remote_checks_diag(pkg, paste0("remote scoring failed: ",
+                                         conditionMessage(e)))
+          NA_real_
+        })
+      if (!is.na(values["remote_checks"])) {
+        remote_checks_diag(pkg, "scored ok")
+      } else if (!scoring_error) {
+        remote_checks_diag(pkg, "scored to NA by riskmetric (score_error_NA)")
+      }
     }
     # remote ref failed, or its version is unreadable so a match cannot be
     # confirmed: fail-closed NA with no cause -> the registry default

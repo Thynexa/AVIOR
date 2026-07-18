@@ -314,3 +314,48 @@ test_that("riskmetric seam accepts an unpinned (empty) inventory version (#22)",
     class = "avior_error"
   )
 })
+
+test_that("AVIOR_DIAG_REMOTE names the remote_checks branch without changing results", {
+  old <- Sys.getenv("AVIOR_DIAG_REMOTE", unset = NA)
+  Sys.setenv(AVIOR_DIAG_REMOTE = "1")
+  on.exit(if (is.na(old)) Sys.unsetenv("AVIOR_DIAG_REMOTE") else
+            Sys.setenv(AVIOR_DIAG_REMOTE = old), add = TRUE)
+
+  expect_message(
+    r1 <- avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(),
+      fake_riskmetric_api(remote_error = TRUE)),
+    "ref failed")
+  expect_true(is.na(r1$value[[1]]))
+
+  expect_message(
+    avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(),
+      fake_riskmetric_api(remote_version = "2.0.0")),
+    "confirmed version mismatch")
+
+  expect_message(
+    avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(),
+      fake_riskmetric_api(remote_version = NULL)),
+    "version unreadable")
+
+  expect_message(
+    avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(),
+      fake_riskmetric_api(remote_score_error = TRUE)),
+    "scoring failed")
+
+  expect_message(
+    r2 <- avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(), fake_riskmetric_api()),
+    "scored ok")
+  expect_identical(r2$value[[1]], 0.75)
+
+  # diagnostics are OFF by default: no messages
+  Sys.unsetenv("AVIOR_DIAG_REMOTE")
+  expect_no_message(
+    avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(),
+      fake_riskmetric_api(remote_error = TRUE)))
+})

@@ -96,15 +96,20 @@ test_that("read_description_deps inventories Depends/Imports/LinkingTo", {
   expect_identical(df$name, c("MASS", "Rcpp", "jsonlite", "yaml"))
   expect_identical(df$version, rep("", 4L))
   expect_identical(df$source, rep("", 4L))
+  # the declaring field survives per package (FR-SCAN-3 provenance)
+  expect_identical(unname(df$declared_in),
+                   c("Depends", "LinkingTo", "Imports", "Imports"))
   expect_identical(unclass(df$requirements), rep(list(character(0)), 4L))
 })
 
-test_that("read_description_deps deduplicates across fields", {
+test_that("read_description_deps deduplicates across fields deterministically", {
   path <- tempfile("DESCRIPTION-")
   writeLines(c("Package: demo", "Depends: jsonlite", "Imports: jsonlite (>= 1.0)"),
              path)
   df <- avior:::read_description_deps(path)
   expect_identical(df$name, "jsonlite")
+  # canonical field order, joined: a package declared twice keeps both facts
+  expect_identical(unname(df$declared_in), "Depends+Imports")
 })
 
 test_that("read_description_deps fails closed on malformed input", {

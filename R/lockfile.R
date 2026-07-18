@@ -44,6 +44,8 @@ read_renv_lock <- function(path) {
     stringsAsFactors = FALSE
   )
   if (any(!nzchar(df$name))) avior_abort(paste0(path, ": package entry without a name"))
+  # provenance column used by the DESCRIPTION fallback; empty for renv rows
+  df$declared_in <- rep("", nrow(df))
   df$requirements <- I(lapply(pkgs, function(p) as.character(unlist(p$Requirements))))
   df <- df[order_c(df$name), , drop = FALSE]
   rownames(df) <- NULL
@@ -69,32 +71,44 @@ read_description_deps <- function(path) {
     avior_abort(paste0(path, ": not a package DESCRIPTION (no Package field)"))
   }
 
-  fields <- intersect(c("Depends", "Imports", "LinkingTo"), colnames(dcf))
-  raw <- unlist(strsplit(paste(stats::na.omit(dcf[1, fields]), collapse = ","),
-                         ",", fixed = TRUE))
-  # strip version constraints ("jsonlite (>= 1.8.0)") and whitespace; the
-  # constraint is a range, not a pinned version — recording it as `version`
-  # would fabricate a precision the source does not have. DCF continuation
-  # lines keep their newlines, so collapse all whitespace first.
-  raw <- gsub("[[:space:]]+", " ", raw)
-  names_clean <- trimws(sub("\\(.*$", "", raw))
-  names_clean <- setdiff(names_clean[nzchar(names_clean)], "R")
-  bad <- names_clean[!grepl("^[A-Za-z][A-Za-z0-9.]*$", names_clean)]
+  # FR-SCAN-3: keep the declaring field per package — "an unused Imports
+  # dependency" and "a LinkingTo dependency" are different provenance facts.
+  # Fields are parsed in canonical order, so a package declared in several
+  # fields gets a deterministic joined record (e.g. "Depends+Imports").
+  declared <- list()
+  bad <- character(0)
+  for (field in intersect(c("Depends", "Imports", "LinkingTo"),
+                          colnames(dcf))) {
+    value <- dcf[1, field]
+    if (is.na(value)) next
+    raw <- unlist(strsplit(value, ",", fixed = TRUE))
+    # strip version constraints ("jsonlite (>= 1.8.0)") and whitespace; the
+    # constraint is a range, not a pinned version — recording it as `version`
+    # would fabricate a precision the source does not have. DCF continuation
+    # lines keep their newlines, so collapse all whitespace first.
+    raw <- gsub("[[:space:]]+", " ", raw)
+    names_clean <- trimws(sub("\\(.*$", "", raw))
+    names_clean <- setdiff(names_clean[nzchar(names_clean)], "R")
+    bad <- c(bad, names_clean[!grepl("^[A-Za-z][A-Za-z0-9.]*$", names_clean)])
+    for (nm in unique(names_clean)) {
+      declared[[nm]] <- unique(c(declared[[nm]], field))
+    }
+  }
   if (length(bad) > 0) {
     avior_abort(paste0(path, ": malformed dependency name(s): ",
-                       paste(bad, collapse = ", ")))
+                       paste(unique(bad), collapse = ", ")))
   }
-  names_clean <- unique(names_clean)
 
-  n <- length(names_clean)
+  n <- length(declared)
   df <- data.frame(
-    name = names_clean,
+    name = names(declared) %||% character(0),
     version = rep("", n),
     source = rep("", n),
     repository = rep("", n),
     priority = rep("", n),
     remote_org = rep("", n),
     remote_repo = rep("", n),
+    declared_in = vapply(declared, paste, character(1), collapse = "+"),
     stringsAsFactors = FALSE
   )
   df$requirements <- I(rep(list(character(0)), n))

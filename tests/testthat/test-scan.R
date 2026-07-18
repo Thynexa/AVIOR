@@ -112,10 +112,12 @@ test_that("scan falls back to DESCRIPTION and records the source", {
   # direct detection via R/ source calls keeps working
   expect_identical(by_name$jsonlite$role, "direct")
   expect_match(by_name$jsonlite$source, "use.R", fixed = TRUE)
-  # a declared dependency without call-site evidence falls back to the
-  # dependency source file, not the literal "renv.lock"
+  # a declared dependency without call-site evidence records its declaring
+  # DESCRIPTION field (FR-SCAN-3), not the literal "renv.lock"
   expect_identical(by_name$yaml$role, "transitive")
-  expect_identical(by_name$yaml$source, "DESCRIPTION")
+  expect_identical(by_name$yaml$source, "DESCRIPTION Imports")
+  expect_identical(by_name$MASS$source, "DESCRIPTION Depends")
+  expect_identical(by_name$Rcpp$source, "DESCRIPTION LinkingTo")
 })
 
 test_that("DESCRIPTION-based scan output is deterministic across reruns", {
@@ -202,4 +204,40 @@ test_that("rescan warns before discarding unsupported inventory fields (#26)", {
 
   # a clean rescan stays silent
   expect_no_warning(avior_scan(root))
+})
+
+test_that("rescan warns about discarded top-level hand edits (#26 review)", {
+  root <- local_example_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+  pristine <- readBin(p, "raw", file.size(p))
+
+  writeLines(c(readLines(p), "audit_owner: Alice"), p)
+  expect_warning(avior_scan(root), "top-level \\(audit_owner\\)")
+  expect_identical(readBin(p, "raw", file.size(p)), pristine)
+  expect_no_warning(avior_scan(root))
+})
+
+test_that("scan fails closed on an unreadable existing inventory (#26 review)", {
+  # a hand edit that leaves the file temporarily malformed may carry a
+  # supported note:; "parse error -> overwrite" would discard it silently
+  root <- local_example_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+
+  writeLines(c(readLines(p), "  ]broken: ["), p)
+  corrupted <- readBin(p, "raw", file.size(p))
+  expect_error(avior_scan(root), regexp = "not readable",
+               class = "avior_error")
+  # the malformed file (and any note inside it) is left untouched
+  expect_identical(readBin(p, "raw", file.size(p)), corrupted)
+
+  # explicit recovery: fixing the file keeps the notes and rescans cleanly
+  txt <- readLines(p, encoding = "UTF-8")
+  writeLines(txt[-length(txt)], p, useBytes = TRUE)
+  expect_no_warning(avior_scan(root))
+  inv <- avior:::read_yaml_file(p)
+  notes <- Filter(Negate(is.null),
+                  lapply(inv$packages, function(x) x$note))
+  expect_length(notes, 2L)   # minqa + survival notes survived the incident
 })
