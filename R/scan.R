@@ -2,8 +2,67 @@
 # Writes <validation>/inventory.yml per PRD 6.1; package rows are flow maps
 # in C-locale name order (FR-X-7), matching the frozen example layout.
 
+# Inventory ownership across rescans (#26): inventory.yml is a GENERATED
+# artifact owned by `avior scan` — rescans rewrite it wholesale. The one
+# supported human annotation is the per-package `note:` field (present in
+# the frozen M0 example, PRD 6.1): a rescan carries notes over by package
+# name, so they survive regeneration; a note whose package left the
+# dependency source disappears with its row. Any OTHER hand-added key is
+# unsupported and is discarded — but never silently (FR-SCAN-4 spirit):
+# the rescan warns, naming the field and the durable home for substantive
+# human input, the decision records (rationale/use_statement, PRD 6.3).
+INVENTORY_PACKAGE_KEYS <- c("name", "version", "classification", "role",
+                            "in_scope", "source", "overridden",
+                            "override_source", "note")
+
+# name -> note map from a previous inventory; only well-formed notes
+# (scalar non-empty strings on named rows) are carried over.
+inventory_notes <- function(prev) {
+  notes <- list()
+  if (!is.list(prev) || !is.list(prev$packages)) return(notes)
+  for (p in prev$packages) {
+    if (is.list(p) &&
+        is.character(p$name) && length(p$name) == 1 && nzchar(p$name) &&
+        is.character(p$note) && length(p$note) == 1 && !is.na(p$note) &&
+        nzchar(p$note)) {
+      notes[[p$name]] <- p$note
+    }
+  }
+  notes
+}
+
+warn_discarded_annotations <- function(prev) {
+  if (!is.list(prev) || !is.list(prev$packages)) return(invisible())
+  extra <- character(0)
+  for (p in prev$packages) {
+    if (!is.list(p)) next
+    unknown <- setdiff(names(p), INVENTORY_PACKAGE_KEYS)
+    if (length(unknown) > 0) {
+      extra <- c(extra, paste0(
+        if (is.character(p$name) && length(p$name) == 1) p$name else "<unnamed>",
+        " (", paste(sort_c(unknown), collapse = ", "), ")"))
+    }
+  }
+  if (length(extra) > 0) {
+    warning(paste0(
+      "avior scan: inventory.yml is a generated artifact and is rewritten ",
+      "on every scan; unsupported hand-added field(s) are being discarded: ",
+      paste(extra, collapse = "; "),
+      ". Keep per-package remarks in the supported `note:` field, and ",
+      "substantive human input in the decision records ",
+      "(validation/decisions/<package>.yml)."), call. = FALSE)
+  }
+  invisible()
+}
+
 avior_scan <- function(root = ".") {
   cfg <- avior_config_load(root)
+
+  out <- file.path(cfg$paths$validation, "inventory.yml")
+  prev <- if (file.exists(out)) {
+    tryCatch(read_yaml_file(out), error = function(e) NULL)
+  }
+  notes <- inventory_notes(prev)
 
   dep_src <- resolve_dep_source(root, cfg$scope$lockfile)
   lock <- classify_packages(dep_src$read(), cfg)
@@ -68,6 +127,11 @@ avior_scan <- function(root = ".") {
       entry$overridden <- TRUE
       entry$override_source <- override_source
     }
+    # the supported human annotation survives the rescan (#26); field order
+    # matches the frozen example (note last)
+    if (!is.null(notes[[name]])) {
+      entry$note <- notes[[name]]
+    }
     yaml_flow(entry)
   })
 
@@ -108,7 +172,7 @@ avior_scan <- function(root = ".") {
     inventory$scan <- list(complete = FALSE, skipped_files = yaml_seq(skipped))
   }
 
-  out <- file.path(cfg$paths$validation, "inventory.yml")
+  warn_discarded_annotations(prev)
   write_yaml_canonical(inventory, out)
   invisible(inventory)
 }

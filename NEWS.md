@@ -19,6 +19,12 @@
   finding (gate red, exit 1), judged against the live lockfile with the
   inventory as fallback. The scan-time warning remains, but a transient
   console warning is not auditable and never blocked CI (#24).
+* `avior scan` — inventory ownership across rescans is now explicit:
+  `inventory.yml` is machine-owned and rewritten wholesale, the
+  per-package `note:` field is the one supported human annotation and is
+  carried over by package name (matching the frozen example), and any
+  other hand-added field is discarded with a warning naming the field
+  and pointing at the decision records — never silently (#26).
 * `avior scan` — falls back to `DESCRIPTION` (Depends/Imports/LinkingTo)
   when the configured lockfile is absent (FR-SCAN-1). The inventory
   records which source produced it (`lockfile.path`); versions stay empty

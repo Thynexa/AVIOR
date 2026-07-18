@@ -147,3 +147,59 @@ test_that("renv.lock stays authoritative when both sources exist", {
   inv <- avior_scan(root)
   expect_identical(inv$lockfile$path, "renv.lock")
 })
+
+# -- inventory ownership across rescans (#26) ---------------------------------
+
+test_that("rescan preserves the supported note: annotation (#26)", {
+  root <- local_example_project()
+  p <- file.path(root, "validation", "inventory.yml")
+  # the fixture (frozen M0 example) ships hand-written notes on minqa and
+  # survival: a rescan must carry them over, not discard them
+  expect_no_warning(avior_scan(root))
+  inv <- avior:::read_yaml_file(p)
+  by_name <- stats::setNames(
+    inv$packages, vapply(inv$packages, function(x) x$name, character(1)))
+  expect_match(by_name$minqa$note, "间接依赖")
+  expect_true(nzchar(by_name$survival$note))
+  expect_null(by_name$jsonlite$note)
+
+  # rescans stay deterministic with notes present
+  first <- readBin(p, "raw", file.size(p))
+  expect_no_warning(avior_scan(root))
+  expect_identical(readBin(p, "raw", file.size(p)), first)
+
+  # a note whose package left the dependency source disappears with its row
+  # (drift handling owns that lifecycle), while others keep theirs
+  lock <- file.path(root, "renv.lock")
+  parsed <- jsonlite::fromJSON(lock, simplifyVector = FALSE)
+  parsed$Packages$minqa <- NULL
+  writeLines(jsonlite::toJSON(parsed, auto_unbox = TRUE), lock)
+  expect_no_warning(avior_scan(root))
+  inv <- avior:::read_yaml_file(p)
+  names2 <- vapply(inv$packages, function(x) x$name, character(1))
+  expect_false("minqa" %in% names2)
+  by_name2 <- stats::setNames(inv$packages, names2)
+  expect_true(nzchar(by_name2$survival$note))
+})
+
+test_that("rescan warns before discarding unsupported inventory fields (#26)", {
+  root <- local_example_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+  pristine <- readBin(p, "raw", file.size(p))
+
+  # an UNSUPPORTED hand-added key: the file is machine-owned, so the rescan
+  # rewrites it, but never silently — the warning names the package, the
+  # field, and where human input belongs (note: / decision records)
+  txt <- readLines(p)
+  i <- grep("name: jsonlite", txt)[1]
+  txt[i] <- sub("\\}$", ", reviewer_remark: looks fine}", txt[i])
+  writeLines(txt, p)
+  expect_warning(avior_scan(root), "reviewer_remark.*decision records")
+
+  # deterministic: the rescan result is byte-identical to the pristine scan
+  expect_identical(readBin(p, "raw", file.size(p)), pristine)
+
+  # a clean rescan stays silent
+  expect_no_warning(avior_scan(root))
+})
