@@ -147,6 +147,34 @@ test_that("JSON collection fields are always arrays (0/1/2 elements)", {
   })
 })
 
+test_that("init --ci generates a workflow; bad values are execution errors (#25)", {
+  fresh <- tempfile("cli-ci-"); dir.create(fresh)
+  with_dir(fresh, {
+    out <- capture.output(code <- main(c("init", "--ci", "github",
+                                         "--format", "json")))
+    expect_identical(code, 0L)
+    parsed <- jsonlite::fromJSON(paste(out, collapse = "\n"),
+                                 simplifyVector = FALSE)
+    expect_identical(parsed$status, "ok")
+    expect_true(any(grepl("workflows", unlist(parsed$created))))
+    expect_true(file.exists(file.path(".github", "workflows", "avior.yml")))
+
+    bad <- list(
+      c("init", "--ci"),                           # missing value
+      c("init", "--ci", "circleci"),               # unsupported provider
+      c("init", "--ci", "github", "--ci", "gitlab") # duplicate
+    )
+    for (argv in bad) {
+      expect_identical(suppressMessages(main(argv)), 2L)
+      out <- capture.output(
+        code <- suppressMessages(main(c(argv, "--format", "json"))))
+      expect_identical(code, 2L)
+      expect_identical(
+        jsonlite::fromJSON(paste(out, collapse = "\n"))$status, "error")
+    }
+  })
+})
+
 test_that("assess --refresh-na maps to refresh_na and gates cache retries (#23)", {
   metrics <- c("has_vignettes", "has_news", "has_bug_reports_url",
                "downloads_1yr", "covr_coverage", "last_30_bugs_status")

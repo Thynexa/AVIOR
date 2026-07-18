@@ -19,6 +19,12 @@
   finding (gate red, exit 1), judged against the live lockfile with the
   inventory as fallback. The scan-time warning remains, but a transient
   console warning is not auditable and never blocked CI (#24).
+* `avior init --ci github|gitlab` (FR-INIT-3) — generates a deterministic
+  CI workflow (`.github/workflows/avior.yml` or `.gitlab-ci.yml`) that
+  runs the read-only `avior check` gate against the committed validation
+  baseline. Existing workflow files are never overwritten; unsupported,
+  duplicate, or valueless `--ci` options are execution errors (exit 2)
+  (#25).
 
 Milestone M1 of the PRD (v1.6 contracts), merged via PRs #17–#19.
 

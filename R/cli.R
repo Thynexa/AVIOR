@@ -64,8 +64,17 @@ run_command <- function(opts) {
       list(command = "version", status = "ok", version = avior_version())
     },
     init = {
-      reject_extra_args(opts$args, "init")
-      res <- avior_init(".")
+      args <- opts$args
+      ci <- NULL
+      i <- which(args == "--ci")
+      if (length(i) > 1) avior_abort("--ci given more than once")
+      if (length(i) == 1) {
+        if (i == length(args)) avior_abort("--ci requires a value (github|gitlab)")
+        ci <- args[i + 1]
+        args <- args[-c(i, i + 1)]
+      }
+      reject_extra_args(args, "init")
+      res <- avior_init(".", ci = ci)
       list(command = "init", status = "ok",
            created = json_array(res$created), skipped = json_array(res$skipped))
     },
