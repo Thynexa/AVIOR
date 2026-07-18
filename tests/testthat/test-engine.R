@@ -46,7 +46,8 @@ fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE,
                                 missing_column_name = character(),
                                 remote_version = version,
                                 remote_score_error = FALSE,
-                                remote_score_na = FALSE) {
+                                remote_score_na = FALSE,
+                                remote_assess_condition = FALSE) {
   seen <- new.env(parent = emptyenv())
   seen$sources <- character()
   assessment_functions <- function(ids) {
@@ -86,6 +87,15 @@ fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE,
         attr(assessments[[i]], "column_name") %||% names(assessments)[[i]]
       }, character(1))
       out <- stats::setNames(as.list(rep(1, length(cols))), cols)
+      if (remote_assess_condition &&
+          identical(ref$source, "pkg_cran_remote") &&
+          "remote_checks" %in% cols) {
+        # a riskmetric-style errored assessment: the metric IS a list-backed
+        # condition object (message + call), classed pkg_metric_error
+        out[["remote_checks"]] <- structure(
+          class = c("pkg_metric_error", "pkg_metric", "condition"),
+          list(message = "scrape failed: 404", call = NULL))
+      }
       attr(out, "source") <- ref$source
       out
     },
@@ -99,7 +109,10 @@ fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE,
         # scoring arithmetic itself can produce it (e.g. 0-row checks table)
         return(stats::setNames(as.list(rep(NA_real_, length(x))), names(x)))
       }
-      stats::setNames(as.list(rep(0.75, length(x))), names(x))
+      stats::setNames(lapply(x, function(cell) {
+        # errored assessments go through the error handler, like pkg_score
+        if (inherits(cell, "pkg_metric_error")) error_handler(cell) else 0.75
+      }), names(x))
     },
     score_error_NA = function(...) NA_real_,
     seen = seen
@@ -378,4 +391,26 @@ test_that("AVIOR_DIAG_REMOTE names the remote_checks branch without changing res
     avior:::riskmetric_assess(
       "demo", "1.0.0", "remote_checks", list(),
       fake_riskmetric_api(remote_error = TRUE)))
+})
+
+test_that("diagnostics preserve list-backed condition objects (#27 review)", {
+  # a pkg_metric_error is ITSELF a list: naive [[1]] unwrapping reduces it
+  # to its message string and the diagnostic reports class [character],
+  # hiding the exact error case the instrumentation exists to expose
+  old <- Sys.getenv("AVIOR_DIAG_REMOTE", unset = NA)
+  Sys.setenv(AVIOR_DIAG_REMOTE = "1")
+  on.exit(if (is.na(old)) Sys.unsetenv("AVIOR_DIAG_REMOTE") else
+            Sys.setenv(AVIOR_DIAG_REMOTE = old), add = TRUE)
+
+  msgs <- capture.output(
+    r <- avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(),
+      fake_riskmetric_api(remote_assess_condition = TRUE)),
+    type = "message")
+  expect_true(is.na(r$value[[1]]))
+  expect_true(any(grepl(
+    "raw assessment remote_checks: class \\[pkg_metric_error/pkg_metric/condition\\]",
+    msgs)))
+  expect_true(any(grepl("condition: scrape failed: 404", msgs)))
+  expect_false(any(grepl("class \\[character\\]", msgs)))
 })

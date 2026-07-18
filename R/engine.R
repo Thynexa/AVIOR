@@ -124,7 +124,16 @@ riskmetric_score_ref <- function(ref, metric_ids, api, diag = NULL) {
   if (!is.null(diag)) {
     for (column in columns) {
       cell <- assessed[[column]]
-      raw <- if (is.list(cell) && length(cell) > 0) cell[[1]] else cell
+      # pkg_assess on a single ref yields the raw metric at [[column]], and
+      # a pkg_metric_error/condition is ITSELF list-backed — unwrapping it
+      # would reduce the condition to its first field (the message string)
+      # and destroy the class evidence this diagnostic exists to capture.
+      # Only a bare, classless list is an outer wrapper worth unwrapping.
+      raw <- if (is.list(cell) && !is.object(cell) && length(cell) > 0) {
+        cell[[1]]
+      } else {
+        cell
+      }
       note <- paste0("raw assessment ", column, ": class [",
                      paste(class(raw), collapse = "/"), "]")
       if (inherits(raw, "condition")) {
