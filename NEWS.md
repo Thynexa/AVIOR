@@ -11,11 +11,12 @@
   unreadable remote version, scoring failure) stay cause-less, retryable
   NAs, and `AVIOR_DIAG_REMOTE=1` names the branch per package on stderr,
   including the raw assessment/scored-cell classes before the numeric
-  conversion. An instrumented smoke run localised the spike's all-NA
-  shape to riskmetric's own assess/score pipeline (ref resolved, version
-  matched — the version guard is exonerated); the exact producer inside
-  riskmetric is pending a run with the finer class diagnostics (see
-  `docs/riskmetric-spike-results.md`).
+  conversion. Instrumented smoke runs diagnosed the spike's all-NA
+  shape with class-level evidence: `assess_remote_checks` errors
+  internally (`subscriptOutOfBoundsError` in its CRAN-checks page
+  parse), riskmetric wraps it as `pkg_metric_error` and scores it to NA
+  via `score_error_NA` — an upstream riskmetric 0.2.7 limitation,
+  contained and disclosed (see `docs/riskmetric-spike-results.md`).
 * `avior assess --refresh-na true|false` — the CLI now exposes the R
   API's `refresh_na` argument: `false` makes every valid cache entry a
   full hit (no online retry of network-cause NA metrics); duplicates and
