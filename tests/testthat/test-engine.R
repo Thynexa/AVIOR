@@ -108,10 +108,11 @@ test_that("riskmetric seam maps score aliases in policy order", {
     "demo", "1.0.0", ids, list(network_available = TRUE), api = api
   )
 
-  expect_identical(names(res), c("metric_id", "value", "status"))
+  expect_identical(names(res), c("metric_id", "value", "status", "na_cause"))
   expect_identical(res$metric_id, ids)
   expect_identical(res$value, rep(0.75, length(ids)))
   expect_identical(res$status, rep("ok", length(ids)))
+  expect_identical(res$na_cause, rep(NA_character_, length(ids)))
 })
 
 test_that("riskmetric seam falls back to the policy id for unnamed columns", {
@@ -202,9 +203,12 @@ test_that("riskmetric seam contains remote ref failures to remote checks", {
   expect_identical(res$value[[1]], 0.75)
   expect_true(is.na(res$value[[2]]))
   expect_identical(res$status, c("ok", "na"))
+  # a failed remote ref may self-heal online: no engine cause, so the
+  # registry default ("network") applies and the next online run retries
+  expect_true(is.na(res$na_cause[[2]]))
 })
 
-test_that("riskmetric seam contains remote version mismatches", {
+test_that("riskmetric seam contains remote version mismatches with cause `version`", {
   api <- fake_riskmetric_api(remote_version = "2.0.0")
 
   res <- avior:::riskmetric_assess(
@@ -215,6 +219,26 @@ test_that("riskmetric seam contains remote version mismatches", {
   expect_identical(res$value[[1]], 0.75)
   expect_true(is.na(res$value[[2]]))
   expect_identical(res$status, c("ok", "na"))
+  # a CONFIRMED mismatch cannot self-heal online -> cause `version`, which
+  # must not trigger the cache refresh rule (#27)
+  expect_identical(res$na_cause, c(NA_character_, "version"))
+})
+
+test_that("riskmetric seam keeps an unreadable remote version retryable", {
+  # remote ref resolves but carries no readable version: a match cannot be
+  # confirmed (fail closed to NA), yet a mismatch cannot be confirmed either,
+  # so the NA must stay cause-less ("network" upstream) and retryable — this
+  # is the spike's all-NA remote_checks shape (#27)
+  api <- fake_riskmetric_api(remote_version = NULL)
+
+  res <- avior:::riskmetric_assess(
+    "demo", "1.0.0", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api
+  )
+
+  expect_true(is.na(res$value[[2]]))
+  expect_identical(res$status, c("ok", "na"))
+  expect_true(is.na(res$na_cause[[2]]))
 })
 
 test_that("riskmetric seam accepts punctuation-equivalent remote versions", {
@@ -248,10 +272,20 @@ test_that("mock engine returns the declared frame shape and marks NAs", {
     network_metrics = "downloads_1yr"
   )
   res <- eng$assess("jsonlite", "1.8.8", c("has_news", "downloads_1yr"), list())
-  expect_identical(names(res), c("metric_id", "value", "status"))
+  expect_identical(names(res), c("metric_id", "value", "status", "na_cause"))
   expect_identical(res$value[res$metric_id == "has_news"], 0.9)
   expect_true(is.na(res$value[res$metric_id == "downloads_1yr"]))
   expect_identical(res$status[res$metric_id == "downloads_1yr"], "na")
   reg <- eng$metrics()
   expect_true(reg$needs_network[reg$id == "downloads_1yr"])
+})
+
+test_that("mock engine emits fixture-declared NA causes", {
+  eng <- avior:::mock_engine(
+    values = list(jsonlite = list(has_news = 0.9)),
+    network_metrics = "remote_checks",
+    na_causes = list(jsonlite = list(remote_checks = "version"))
+  )
+  res <- eng$assess("jsonlite", "1.8.8", c("has_news", "remote_checks"), list())
+  expect_identical(res$na_cause, c(NA_character_, "version"))
 })

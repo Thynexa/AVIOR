@@ -136,6 +136,16 @@ same_package_version <- function(actual, required) {
   }, error = function(e) FALSE)
 }
 
+# same_package_version() fails closed, so a FALSE cannot distinguish "the
+# versions differ" from "the version is unreadable". The distinction matters
+# for NA causes: only a CONFIRMED mismatch may be tagged `version` (never
+# self-heals online); an unreadable version must stay retryable.
+known_package_version <- function(v) {
+  v <- as.character(v)
+  length(v) == 1 && !is.na(v) &&
+    tryCatch({ base::package_version(v); TRUE }, error = function(e) FALSE)
+}
+
 riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   api <- api %||% riskmetric_api()
   ref <- api$pkg_ref(pkg)
@@ -157,23 +167,37 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   }
 
   values <- stats::setNames(rep(NA_real_, length(metric_ids)), metric_ids)
+  causes <- stats::setNames(rep(NA_character_, length(metric_ids)), metric_ids)
   local_ids <- setdiff(metric_ids, "remote_checks")
   values[local_ids] <- riskmetric_score_ref(ref, local_ids, api)
   if ("remote_checks" %in% metric_ids) {
-    values["remote_checks"] <- tryCatch({
-      remote <- api$pkg_ref(pkg, source = "pkg_cran_remote")
-      if (!same_package_version(remote$version, version)) {
-        NA_real_
-      } else {
-        riskmetric_score_ref(remote, "remote_checks", api)[[1]]
-      }
-    }, error = function(e) NA_real_)
+    remote <- tryCatch(api$pkg_ref(pkg, source = "pkg_cran_remote"),
+                       error = function(e) NULL)
+    remote_version_known <- !is.null(remote) &&
+      known_package_version(remote$version)
+    if (remote_version_known && !same_package_version(remote$version, version)) {
+      # CONFIRMED containment: CRAN latest is a different release than the
+      # pinned version, so its check results must not be attributed here —
+      # and going online again cannot heal this NA. Cause `version` keeps it
+      # out of the cache refresh rule (a retry per run would defeat the
+      # cache forever); a lockfile version bump changes the cache key and
+      # re-assesses naturally.
+      causes["remote_checks"] <- "version"
+    } else if (remote_version_known) {
+      values["remote_checks"] <- tryCatch(
+        riskmetric_score_ref(remote, "remote_checks", api)[[1]],
+        error = function(e) NA_real_)
+    }
+    # remote ref failed, or its version is unreadable so a match cannot be
+    # confirmed: fail-closed NA with no cause -> the registry default
+    # ("network") applies upstream and the next online run retries.
   }
 
   data.frame(
     metric_id = metric_ids,
     value = unname(values),
     status = ifelse(is.na(values), "na", "ok"),
+    na_cause = unname(causes),
     stringsAsFactors = FALSE
   )
 }
@@ -198,10 +222,13 @@ engine_riskmetric <- function() {
 
 # Fixture-driven engine: `values` is pkg -> metric -> goodness (0-1).
 # Metrics named in network_metrics are flagged needs_network so NA-cause
-# logic can be exercised without touching the internet.
+# logic can be exercised without touching the internet. `na_causes` is an
+# optional pkg -> metric -> cause map for engine-attributed causes (the
+# riskmetric adapter's `version` containment, PRD 7.2 / FR-X-5).
 mock_engine <- function(values, id = "mock", version = "1.0",
                         network_metrics = character(0),
                         execution_metrics = character(0),
+                        na_causes = NULL,
                         counter = NULL) {
   all_ids <- unique(c(unlist(lapply(values, names)), network_metrics,
                       execution_metrics))
@@ -229,10 +256,15 @@ mock_engine <- function(values, id = "mock", version = "1.0",
         v <- values[[pkg]][[mid]]
         if (is.null(v)) NA_real_ else as.numeric(v)
       }, numeric(1))
+      causes <- vapply(metric_ids, function(mid) {
+        cv <- na_causes[[pkg]][[mid]]
+        if (is.null(cv)) NA_character_ else as.character(cv)
+      }, character(1))
       data.frame(
         metric_id = metric_ids,
         value = unname(vals),
         status = ifelse(is.na(vals), "na", "ok"),
+        na_cause = unname(causes),
         stringsAsFactors = FALSE
       )
     }

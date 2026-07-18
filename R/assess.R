@@ -4,7 +4,9 @@
 # Aggregation: engine metrics are "goodness" in [0,1] (riskmetric
 # convention); risk = 1 - weighted.mean(goodness, policy weights).
 # execution-cost metrics only run under deep = TRUE (PRD 7.2); when skipped
-# they are NA with cause "execution", which never triggers cache refresh.
+# they are NA with cause "execution", which never triggers cache refresh —
+# nor does "version" (engine-confirmed containment mismatch). Only
+# "network" NAs are retried, and only the NA slice of the entry.
 
 read_inventory <- function(cfg) {
   path <- file.path(cfg$paths$validation, "inventory.yml")
@@ -14,10 +16,16 @@ read_inventory <- function(cfg) {
   read_yaml_file(path)
 }
 
-# FR-X-5 cause enum is network|execution: "network" = may self-heal when
-# online (triggers cache refresh); "execution" = only --deep (or a code fix)
-# resolves it, never auto-refreshed. A ran-but-NA offline-safe metric maps
-# to "execution" for the same reason: re-assessing online won't help.
+# FR-X-5 cause enum is network|execution|version: "network" = may self-heal
+# when online (triggers cache refresh); "execution" = only --deep (or a code
+# fix) resolves it, never auto-refreshed; "version" = the engine confirmed a
+# containment mismatch (e.g. remote_checks for a lockfile pinned below CRAN
+# latest) that going online cannot heal — only a lockfile version change
+# (which changes the cache key) resolves it, so it never triggers refresh.
+# A ran-but-NA offline-safe metric maps to "execution" for the same reason:
+# re-assessing online won't help.
+NA_CAUSES <- c("network", "execution", "version")
+
 na_cause <- function(metric_id, registry) {
   if (isTRUE(registry$needs_network[registry$id == metric_id])) "network" else "execution"
 }
@@ -122,7 +130,7 @@ read_score_cache <- function(path, metric_ids) {
       !anyDuplicated(cause_names) && setequal(cause_names, na_metric_ids) &&
       all(vapply(causes, function(cause) {
         is.character(cause) && length(cause) == 1L && !is.na(cause) &&
-          cause %in% c("network", "execution")
+          cause %in% NA_CAUSES
       }, logical(1)))
   } else {
     FALSE
@@ -199,6 +207,24 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
                            p$name, ": ", paste(res$metric_id[bad], collapse = ", ")))
       }
       fresh <- stats::setNames(as.list(res$value), res$metric_id)
+      # engine-attributed NA causes (7.2 contract, optional column): e.g. the
+      # riskmetric adapter's confirmed version containment. Validate like the
+      # value range — an unknown cause written to the cache would silently
+      # invalidate the entry on every later read.
+      fresh_causes <- if (is.null(res$na_cause)) {
+        stats::setNames(character(0), character(0))
+      } else {
+        bad_cause <- !is.na(res$na_cause) &
+          (!res$na_cause %in% NA_CAUSES | !is.na(res$value))
+        if (any(bad_cause)) {
+          avior_abort(paste0(
+            "engine `", eng$id, "` returned invalid NA causes for ", p$name,
+            ": ", paste(res$metric_id[bad_cause], collapse = ", "),
+            " (expected ", paste(NA_CAUSES, collapse = "|"),
+            ", on NA values only)"))
+        }
+        stats::setNames(as.character(res$na_cause), res$metric_id)
+      }
       # ignore extraneous ids; a refresh may only touch the metrics it re-ran
       allowed <- if (is.null(entry)) metric_ids else refresh_ids
       fresh <- fresh[names(fresh) %in% allowed]
@@ -213,13 +239,30 @@ avior_assess <- function(root = ".", only = NULL, deep = FALSE, engine = NULL,
       nas <- names(values)[vapply(values, function(v) {
         is.null(v) || isTRUE(is.na(v))
       }, logical(1))]
+      # cause per NA metric: freshly-run metrics take the engine-attributed
+      # cause (registry fallback); metrics NOT re-run this pass keep their
+      # cached cause — a refresh of one metric must not downgrade another's
+      # `version` containment back to retryable "network".
+      prior_causes <- if (is.null(entry)) list() else entry$na_causes
       entry <- list(
         package = p$name,
         version = p$version,
         metrics = values,
         na_metrics = nas,
-        na_causes = stats::setNames(
-          lapply(nas, function(mid) na_cause(mid, registry)), nas),
+        na_causes = stats::setNames(lapply(nas, function(mid) {
+          if (mid %in% names(fresh)) {
+            engine_cause <- unname(fresh_causes[mid])
+            if (length(engine_cause) == 1 && !is.na(engine_cause)) {
+              engine_cause
+            } else {
+              na_cause(mid, registry)
+            }
+          } else if (!is.null(prior_causes[[mid]])) {
+            prior_causes[[mid]]
+          } else {
+            na_cause(mid, registry)
+          }
+        }), nas),
         scored_at = avior_timestamp()
       )
       dir.create(dirname(cache_file), recursive = TRUE, showWarnings = FALSE)

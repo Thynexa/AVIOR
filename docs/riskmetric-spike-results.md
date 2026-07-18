@@ -43,3 +43,31 @@ The successful evidence SHA is the remote PR branch's parallel fix for semantic
 package-version comparison. The final integrated head will retain an equivalent
 or stricter semantic comparison and, after the final push, will be revalidated
 by the PR-triggered 5-package `Riskmetric smoke` check.
+
+## Root-cause note: all-NA `remote_checks` (issue #27)
+
+The spike's hot and cold runs reported `remote_checks` as NA for every
+package even though the assessment library was freshly installed from CRAN
+(installed version == CRAN latest, so the adapter's version guard should
+have passed). The adapter code at the spike SHA compared
+`pkg_ref(pkg, source = "pkg_cran_remote")$version` against the lockfile
+version with a fail-closed comparison: any shape that does not parse as a
+package version — including a `NULL`/absent `$version` on the remote ref —
+was treated as a mismatch and swallowed to a bare NA by the surrounding
+`tryCatch`. A remote ref whose version is populated lazily (or a transient
+CRAN checks scrape failure) therefore produced the observed all-NA column
+without leaving a distinguishable trace. This is an upstream shape issue we
+contain rather than fix: riskmetric is maintenance-only.
+
+The adapter now separates the two situations explicitly (issue #27):
+
+- **Confirmed mismatch** — the remote version is readable and differs from
+  the pinned version. The NA carries cause `version`; it can never self-heal
+  by going online, so it does not trigger the score-cache refresh rule. A
+  lockfile version change alters the cache key and re-assesses naturally.
+- **Indeterminate** — the remote ref fails or its version is unreadable
+  (the spike shape). The NA stays cause-less and maps to the registry
+  default `network`, so the next online run retries it.
+
+A future spike re-run will show which of the two shapes the runner actually
+hits; either way the NA disclosure in `scores.yml` is unchanged.

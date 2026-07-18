@@ -1,5 +1,16 @@
 # avior 0.0.0.9000 (development)
 
+## Post-M1 fixes and deferred items (issues #22–#28)
+
+* `avior assess` — engine adapters can now attribute NA causes; the
+  riskmetric adapter tags a CONFIRMED `remote_checks` version mismatch
+  (lockfile pinned below CRAN latest) with cause `version`, which never
+  triggers the score-cache refresh rule. A repeated online assess over an
+  unchanged pinned project is a genuine cache hit: zero engine calls,
+  byte-identical output (#27). An unreadable remote version stays a
+  cause-less, retryable NA (the spike's all-NA shape — see
+  `docs/riskmetric-spike-results.md`).
+
 Milestone M1 of the PRD (v1.6 contracts), merged via PRs #17–#19.
 
 ## Commands
