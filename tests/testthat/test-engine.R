@@ -45,7 +45,8 @@ test_that("riskmetric assess aborts cleanly when riskmetric is unavailable", {
 fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE,
                                 missing_column_name = character(),
                                 remote_version = version,
-                                remote_score_error = FALSE) {
+                                remote_score_error = FALSE,
+                                remote_score_na = FALSE) {
   seen <- new.env(parent = emptyenv())
   seen$sources <- character()
   assessment_functions <- function(ids) {
@@ -92,6 +93,11 @@ fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE,
       if (remote_score_error &&
           identical(attr(x, "source"), "pkg_cran_remote")) {
         stop("remote scoring failed")
+      }
+      if (remote_score_na && identical(attr(x, "source"), "pkg_cran_remote")) {
+        # a final NA WITHOUT any error or error_handler involvement: the
+        # scoring arithmetic itself can produce it (e.g. 0-row checks table)
+        return(stats::setNames(as.list(rep(NA_real_, length(x))), names(x)))
       }
       stats::setNames(as.list(rep(0.75, length(x))), names(x))
     },
@@ -351,6 +357,20 @@ test_that("AVIOR_DIAG_REMOTE names the remote_checks branch without changing res
       "demo", "1.0.0", "remote_checks", list(), fake_riskmetric_api()),
     "scored ok")
   expect_identical(r2$value[[1]], 0.75)
+
+  # a bare final NA (no error raised, no error handler involved) must NOT be
+  # attributed to score_error_NA; the raw assessment/scored-cell classes are
+  # reported so a real run can identify the producer (#27 review)
+  msgs <- capture.output(
+    r3 <- avior:::riskmetric_assess(
+      "demo", "1.0.0", "remote_checks", list(),
+      fake_riskmetric_api(remote_score_na = TRUE)),
+    type = "message")
+  expect_true(is.na(r3$value[[1]]))
+  expect_true(any(grepl("raw assessment remote_checks: class", msgs)))
+  expect_true(any(grepl("scored cell remote_checks: class", msgs)))
+  expect_true(any(grepl("final scored value is NA", msgs)))
+  expect_false(any(grepl("score_error_NA", msgs)))
 
   # diagnostics are OFF by default: no messages
   Sys.unsetenv("AVIOR_DIAG_REMOTE")

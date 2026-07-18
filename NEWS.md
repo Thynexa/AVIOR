@@ -9,11 +9,12 @@
   unchanged pinned project is a genuine cache hit: zero engine calls,
   byte-identical output (#27). Indeterminate failures (ref error,
   unreadable remote version, scoring failure) stay cause-less, retryable
-  NAs, and `AVIOR_DIAG_REMOTE=1` names the branch per package on stderr.
-  An instrumented smoke run diagnosed the spike's all-NA shape as
-  riskmetric-internal: the CRAN-checks assessment errors inside
-  riskmetric and is scored to NA by its own `score_error_NA` handler —
-  an upstream limitation, contained and disclosed (see
+  NAs, and `AVIOR_DIAG_REMOTE=1` names the branch per package on stderr,
+  including the raw assessment/scored-cell classes before the numeric
+  conversion. An instrumented smoke run localised the spike's all-NA
+  shape to riskmetric's own assess/score pipeline (ref resolved, version
+  matched — the version guard is exonerated); the exact producer inside
+  riskmetric is pending a run with the finer class diagnostics (see
   `docs/riskmetric-spike-results.md`).
 * `avior assess --refresh-na true|false` — the CLI now exposes the R
   API's `refresh_na` argument: `false` makes every valid cache entry a

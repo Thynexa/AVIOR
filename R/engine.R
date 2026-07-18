@@ -106,7 +106,12 @@ riskmetric_api <- function() {
   )
 }
 
-riskmetric_score_ref <- function(ref, metric_ids, api) {
+# `diag` (optional callback) reports the RAW assessment and scored cells
+# before the numeric conversion below discards their classes: a final NA
+# alone cannot distinguish an errored assessment handled by score_error_NA
+# from a pkg_metric_na, from scoring arithmetic that yields NA, or from a
+# non-scalar scored cell the adapter converts to NA.
+riskmetric_score_ref <- function(ref, metric_ids, api, diag = NULL) {
   if (!length(metric_ids)) {
     return(stats::setNames(numeric(), character()))
   }
@@ -115,14 +120,34 @@ riskmetric_score_ref <- function(ref, metric_ids, api) {
     attr(assessments[[i]], "column_name") %||% metric_ids[[i]]
   }, character(1))
   names(assessments) <- columns
-  scored <- api$pkg_score(
-    api$pkg_assess(ref, assessments = assessments),
-    error_handler = api$score_error_NA
-  )
-  stats::setNames(vapply(columns, function(column) {
+  assessed <- api$pkg_assess(ref, assessments = assessments)
+  if (!is.null(diag)) {
+    for (column in columns) {
+      cell <- assessed[[column]]
+      raw <- if (is.list(cell) && length(cell) > 0) cell[[1]] else cell
+      note <- paste0("raw assessment ", column, ": class [",
+                     paste(class(raw), collapse = "/"), "]")
+      if (inherits(raw, "condition")) {
+        note <- paste0(note, ", condition: ", tryCatch(
+          conditionMessage(raw), error = function(e) "<unavailable>"))
+      }
+      diag(note)
+    }
+  }
+  scored <- api$pkg_score(assessed, error_handler = api$score_error_NA)
+  out <- stats::setNames(vapply(columns, function(column) {
     value <- suppressWarnings(as.numeric(scored[[column]]))
     if (length(value) == 1L) value else NA_real_
   }, numeric(1)), metric_ids)
+  if (!is.null(diag)) {
+    for (i in seq_along(columns)) {
+      cell <- scored[[columns[i]]]
+      diag(paste0("scored cell ", columns[i], ": class [",
+                  paste(class(cell), collapse = "/"), "], length ",
+                  length(unlist(cell)), ", final value ", format(out[[i]])))
+    }
+  }
+  out
 }
 
 # R treats `.` and `-` as interchangeable package-version separators. Compare
@@ -219,8 +244,12 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
       causes["remote_checks"] <- "version"
     } else if (remote_version_known) {
       scoring_error <- FALSE
+      diag_cb <- if (nzchar(Sys.getenv("AVIOR_DIAG_REMOTE"))) {
+        function(note) remote_checks_diag(pkg, note)
+      }
       values["remote_checks"] <- tryCatch(
-        riskmetric_score_ref(remote, "remote_checks", api)[[1]],
+        riskmetric_score_ref(remote, "remote_checks", api,
+                             diag = diag_cb)[[1]],
         error = function(e) {
           scoring_error <<- TRUE
           remote_checks_diag(pkg, paste0("remote scoring failed: ",
@@ -230,7 +259,10 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
       if (!is.na(values["remote_checks"])) {
         remote_checks_diag(pkg, "scored ok")
       } else if (!scoring_error) {
-        remote_checks_diag(pkg, "scored to NA by riskmetric (score_error_NA)")
+        # a bare final NA does NOT identify the producer — the raw
+        # assessment/scored-cell diagnostics above carry the class evidence
+        remote_checks_diag(
+          pkg, "final scored value is NA (see raw assessment diagnostics)")
       }
     }
     # remote ref failed, or its version is unreadable so a match cannot be

@@ -63,30 +63,32 @@ are externally indistinguishable in that run's output:
    failing, or riskmetric scoring the assessment to NA via
    `score_error_NA`.
 
-**Diagnosed: boundary 3, riskmetric-internal.** The adapter names the
-branch per package on stderr when `AVIOR_DIAG_REMOTE=1` is set (ref
-failure / unreadable version / confirmed mismatch / scoring failure /
-scored-to-NA), and the `riskmetric-smoke` workflow runs with it enabled.
-The first instrumented run —
+**Partially diagnosed: the NA is produced inside riskmetric's
+assess/score pipeline; the exact producer is pending finer evidence.**
+The adapter names the branch per package on stderr when
+`AVIOR_DIAG_REMOTE=1` is set (ref failure / unreadable version /
+confirmed mismatch / scoring failure / final-NA), and the
+`riskmetric-smoke` workflow runs with it enabled. The first instrumented
+run —
 [run 29651706581](https://github.com/Thynexa/AVIOR/actions/runs/29651706581)
 (2026-07-18, R 4.6.1, riskmetric 0.2.7, 5 packages, cold and hot) —
-reported the SAME branch for every package:
+reported the SAME shape for every package: the `pkg_cran_remote` ref
+resolved, its version was readable and MATCHED the installed version (no
+mismatch/unreadable diagnostics fired — the version guard is exonerated,
+ruling out boundaries 1 and 2), no R error crossed the adapter boundary,
+and the final scored value was NA.
 
-```
-avior remote_checks diag [<pkg>]: scored to NA by riskmetric (score_error_NA)
-```
-
-That is: `pkg_cran_remote` resolved, its version was readable and MATCHED
-the installed version (no mismatch/unreadable diagnostics fired — the
-version guard is exonerated), `pkg_assess`/`pkg_score` completed without
-raising an R error, and riskmetric itself converted the `remote_checks`
-assessment (an errored CRAN-checks scrape/parse inside
-`assess_remote_checks`) to NA through its own `score_error_NA` error
-handler. This is an upstream riskmetric limitation we contain and
-disclose rather than fix (riskmetric is maintenance-only); it is
-systematic (5/5 packages, cold and hot), not transient. A 50-package
-`workflow_dispatch` rerun reproduces the original spike shape with the
-same evidence trail.
+What that run does NOT establish is WHICH producer inside riskmetric
+yields the NA: an errored `assess_remote_checks` handled by
+`score_error_NA`, a `pkg_metric_na` assessment, NA-producing scoring
+arithmetic (a 0-row checks table), or a non-scalar scored cell the
+adapter converts to NA — the adapter's numeric conversion had already
+discarded the raw classes. The diagnostics now also report the raw
+assessment class (plus condition message, when present) and the scored
+cell's class/length BEFORE conversion; the next instrumented smoke run
+pins the producer. Update this section with that evidence, and a
+50-package `workflow_dispatch` rerun to reproduce the original spike
+shape remains future work — neither has been run yet.
 
 Independent of that diagnosis, the adapter now separates the containment
 outcomes (issue #27):
