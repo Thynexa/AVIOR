@@ -108,9 +108,9 @@ riskmetric_api <- function() {
 
 # `diag` (optional callback) reports the RAW assessment and scored cells
 # before the numeric conversion below discards their classes: a final NA
-# alone cannot distinguish an errored assessment handled by score_error_NA
-# from a pkg_metric_na, from scoring arithmetic that yields NA, or from a
-# non-scalar scored cell the adapter converts to NA.
+# alone cannot distinguish an errored assessment scored to a
+# pkg_score_error NA from a pkg_metric_na, from scoring arithmetic that
+# yields NA, or from a non-scalar scored cell the adapter converts to NA.
 riskmetric_score_ref <- function(ref, metric_ids, api, diag = NULL) {
   if (!length(metric_ids)) {
     return(stats::setNames(numeric(), character()))

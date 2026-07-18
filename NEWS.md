@@ -14,9 +14,11 @@
   conversion. Instrumented smoke runs diagnosed the spike's all-NA
   shape with class-level evidence: `assess_remote_checks` errors
   internally (`subscriptOutOfBoundsError` in its CRAN-checks page
-  parse), riskmetric wraps it as `pkg_metric_error` and scores it to NA
-  via `score_error_NA` — an upstream riskmetric 0.2.7 limitation,
-  contained and disclosed (see `docs/riskmetric-spike-results.md`).
+  parse), riskmetric wraps it as `pkg_metric_error`, and riskmetric's
+  `pkg_metric_error` scoring path returns a `pkg_score_error` NA
+  directly (the supplied error handler is never invoked) — an upstream
+  riskmetric 0.2.7 limitation, contained and disclosed (see
+  `docs/riskmetric-spike-results.md`).
 * `avior assess --refresh-na true|false` — the CLI now exposes the R
   API's `refresh_na` argument: `false` makes every valid cache entry a
   full hit (no online retry of network-cause NA metrics); duplicates and

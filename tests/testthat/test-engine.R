@@ -110,8 +110,10 @@ fake_riskmetric_api <- function(version = "1.0.0", remote_error = FALSE,
         return(stats::setNames(as.list(rep(NA_real_, length(x))), names(x)))
       }
       stats::setNames(lapply(x, function(cell) {
-        # errored assessments go through the error handler, like pkg_score
-        if (inherits(cell, "pkg_metric_error")) error_handler(cell) else 0.75
+        # errored assessments score to NA (riskmetric 0.2.7 returns a
+        # pkg_score_error NA directly, without invoking error_handler; the
+        # NA outcome is what matters to the adapter)
+        if (inherits(cell, "pkg_metric_error")) NA_real_ else 0.75
       }), names(x))
     },
     score_error_NA = function(...) NA_real_,

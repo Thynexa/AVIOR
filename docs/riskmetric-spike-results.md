@@ -60,11 +60,10 @@ are externally indistinguishable in that run's output:
    `available.packages()`, which makes this shape unlikely unless the
    index fetch itself degraded);
 3. the CRAN-checks scrape (`pkg_assess`/`pkg_score` on the remote ref)
-   failing, or riskmetric scoring the assessment to NA via
-   `score_error_NA`.
+   failing, or riskmetric scoring the errored assessment to NA.
 
 **Diagnosed, with class-level evidence: boundary 3 — an errored
-`assess_remote_checks` handled by `score_error_NA`.** The adapter names
+`assess_remote_checks`, scored to a `pkg_score_error` NA.** The adapter names
 the branch per package on stderr when `AVIOR_DIAG_REMOTE=1` is set, and
 since the finer instrumentation it also reports the RAW assessment
 class/condition and the scored cell before numeric conversion. The
@@ -90,9 +89,14 @@ identical for every package):
 That is: `assess_remote_checks` errors internally with a
 `subscriptOutOfBoundsError` ("subscript out of bounds" — its CRAN-checks
 page scrape/parse indexes a result shape that is no longer there),
-riskmetric wraps it as a `pkg_metric_error`, and `pkg_score` converts it
-to NA through `score_error_NA` (the `pkg_score_error` class on the
-scored cell is that handler's signature). Systematic (every package,
+riskmetric wraps it as a `pkg_metric_error`, and riskmetric's scoring
+path for `pkg_metric_error` returns a `pkg_score_error` NA directly.
+(Mechanism note: in riskmetric 0.2.7,
+`metric_score_condition.pkg_metric_error` is defined twice in
+`R/metric_score.R`; the later definition wins and returns
+`structure(NA_real_, class = c("pkg_score_error", "numeric"))` without
+invoking the caller-supplied `error_handler` — so the NA must not be
+attributed to `score_error_NA`, which never runs.) Systematic (every package,
 every run today), not transient — an upstream riskmetric 0.2.7
 limitation we contain and disclose rather than fix (riskmetric is
 maintenance-only). A 50-package `workflow_dispatch` rerun to reproduce
