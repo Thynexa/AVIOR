@@ -1,8 +1,9 @@
 # avior check — the CI gate (FR-CHECK-1..4). Aggregates: lockfile drift
 # against the inventory baseline, policy validity (rationale TODO, weights
 # vs the static metric registry), decision completeness (review_findings),
-# test-result freshness (version + environment binding, FR-TEST-2), and
-# excluded_but_present (PRD v1.6 A6). Read-only: never re-scores (FR-CHECK-4).
+# test-result freshness (version + environment binding, FR-TEST-2),
+# excluded_but_present (PRD v1.6 A6), and unknown scope.include/exclude
+# references (FR-SCAN-4). Read-only: never re-scores (FR-CHECK-4).
 
 check_drift <- function(cfg, inventory) {
   findings <- list()
@@ -170,6 +171,31 @@ check_test_results <- function(cfg, inventory) {
   findings
 }
 
+# A scope.include/exclude entry that names no lockfile package silently
+# no-ops (typo, package since removed) — a trust defect for an audit tool
+# (FR-SCAN-4). scan warns at generation time; the gate must ALSO fail on it,
+# because a transient console warning is not auditable and never blocks CI.
+check_scope_refs <- function(cfg, inventory) {
+  findings <- list()
+  # judge against the LIVE lockfile when readable (same rationale as
+  # check_excluded_present): after the user fixes avior.yml or the lockfile,
+  # this rule must not keep reporting a now-false fact
+  present <- tryCatch(
+    read_renv_lock(file.path(cfg$root, cfg$scope$lockfile))$name,
+    error = function(e) vapply(inventory$packages, function(p) p$name, character(1)))
+  for (field in c("include", "exclude")) {
+    for (pkg in sort_c(setdiff(cfg$scope[[field]], present))) {
+      findings[[length(findings) + 1L]] <- finding(
+        pkg, "unknown_scope_reference",
+        paste0("avior.yml scope.", field, " references a package that is ",
+               "not in the lockfile"),
+        fix = paste0("correct or remove `", pkg, "` in avior.yml scope.",
+                     field))
+    }
+  }
+  findings
+}
+
 check_excluded_present <- function(cfg, inventory) {
   findings <- list()
   # judge against the LIVE lockfile when readable: after the user removes
@@ -231,6 +257,7 @@ avior_check <- function(root = ".") {
 
   findings <- c(findings, check_test_results(cfg, inventory))
   findings <- c(findings, check_excluded_present(cfg, inventory))
+  findings <- c(findings, check_scope_refs(cfg, inventory))
 
   list(status = if (length(findings) == 0) "pass" else "fail",
        findings = findings)

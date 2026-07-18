@@ -14,6 +14,11 @@
   API's `refresh_na` argument: `false` makes every valid cache entry a
   full hit (no online retry of network-cause NA metrics); duplicates and
   values other than `true|false` are execution errors (exit 2) (#23).
+* `avior check` — a `scope.include`/`scope.exclude` entry that names no
+  package in the lockfile is now a typed `unknown_scope_reference`
+  finding (gate red, exit 1), judged against the live lockfile with the
+  inventory as fallback. The scan-time warning remains, but a transient
+  console warning is not auditable and never blocked CI (#24).
 
 Milestone M1 of the PRD (v1.6 contracts), merged via PRs #17–#19.
 
