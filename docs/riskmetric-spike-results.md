@@ -63,14 +63,30 @@ are externally indistinguishable in that run's output:
    failing, or riskmetric scoring the assessment to NA via
    `score_error_NA`.
 
-**Which boundary fired is not yet established** — the spike run predates
-the instrumentation, so this section deliberately does not claim a root
-cause. The adapter now names the branch per package on stderr when
-`AVIOR_DIAG_REMOTE=1` is set (ref failure / unreadable version / confirmed
-mismatch / scoring failure / scored-to-NA), and the `riskmetric-smoke`
-workflow runs with it enabled, so any PR or dispatch run produces the
-missing evidence. Update this section with the observed branch once a
-diagnosed run exists.
+**Diagnosed: boundary 3, riskmetric-internal.** The adapter names the
+branch per package on stderr when `AVIOR_DIAG_REMOTE=1` is set (ref
+failure / unreadable version / confirmed mismatch / scoring failure /
+scored-to-NA), and the `riskmetric-smoke` workflow runs with it enabled.
+The first instrumented run —
+[run 29651706581](https://github.com/Thynexa/AVIOR/actions/runs/29651706581)
+(2026-07-18, R 4.6.1, riskmetric 0.2.7, 5 packages, cold and hot) —
+reported the SAME branch for every package:
+
+```
+avior remote_checks diag [<pkg>]: scored to NA by riskmetric (score_error_NA)
+```
+
+That is: `pkg_cran_remote` resolved, its version was readable and MATCHED
+the installed version (no mismatch/unreadable diagnostics fired — the
+version guard is exonerated), `pkg_assess`/`pkg_score` completed without
+raising an R error, and riskmetric itself converted the `remote_checks`
+assessment (an errored CRAN-checks scrape/parse inside
+`assess_remote_checks`) to NA through its own `score_error_NA` error
+handler. This is an upstream riskmetric limitation we contain and
+disclose rather than fix (riskmetric is maintenance-only); it is
+systematic (5/5 packages, cold and hot), not transient. A 50-package
+`workflow_dispatch` rerun reproduces the original spike shape with the
+same evidence trail.
 
 Independent of that diagnosis, the adapter now separates the containment
 outcomes (issue #27):

@@ -7,8 +7,13 @@
   (lockfile pinned below CRAN latest) with cause `version`, which never
   triggers the score-cache refresh rule. A repeated online assess over an
   unchanged pinned project is a genuine cache hit: zero engine calls,
-  byte-identical output (#27). An unreadable remote version stays a
-  cause-less, retryable NA (the spike's all-NA shape — see
+  byte-identical output (#27). Indeterminate failures (ref error,
+  unreadable remote version, scoring failure) stay cause-less, retryable
+  NAs, and `AVIOR_DIAG_REMOTE=1` names the branch per package on stderr.
+  An instrumented smoke run diagnosed the spike's all-NA shape as
+  riskmetric-internal: the CRAN-checks assessment errors inside
+  riskmetric and is scored to NA by its own `score_error_NA` handler —
+  an upstream limitation, contained and disclosed (see
   `docs/riskmetric-spike-results.md`).
 * `avior assess --refresh-na true|false` — the CLI now exposes the R
   API's `refresh_na` argument: `false` makes every valid cache entry a
