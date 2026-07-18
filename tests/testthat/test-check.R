@@ -318,3 +318,48 @@ test_that("CLI: check maps pass->0, fail->1 and emits json (FR-X-3)", {
   expect_identical(parsed$status, "fail")
   expect_true(length(parsed$findings) >= 1)
 })
+
+# -- DESCRIPTION fallback (FR-SCAN-1, #22) ------------------------------------
+
+test_that("check drift rules work on a DESCRIPTION-based project", {
+  root <- local_description_project()
+  avior_scan(root)
+  res <- avior_check(root)
+  # no drift and no missing-lockfile complaint right after a scan; the gate
+  # may still be red for other reasons (no scores/decisions yet)
+  expect_false(any(check_types(res) %in%
+                   c("missing_lockfile", "drift_added", "drift_removed",
+                     "drift_version", "drift_lockfile")))
+
+  # editing DESCRIPTION moves the drift baseline
+  desc <- file.path(root, "DESCRIPTION")
+  writeLines(sub("Imports: jsonlite \\(>= 1.8.0\\),", "Imports: glue, jsonlite,",
+                 readLines(desc)), desc)
+  res <- avior_check(root)
+  expect_true("drift_added" %in% check_types(res))
+  expect_true("glue" %in% check_pkgs(res))
+})
+
+test_that("adding renv.lock after a DESCRIPTION scan reads as drift", {
+  root <- local_description_project()
+  avior_scan(root)
+  writeLines(paste0(
+    '{"R": {"Version": "4.3.0"}, "Packages": {',
+    '"jsonlite": {"Package": "jsonlite", "Version": "1.8.8", ',
+    '"Source": "Repository", "Repository": "CRAN"}}}'),
+    file.path(root, "renv.lock"))
+  res <- avior_check(root)
+  # the now-authoritative lockfile lacks MASS/Rcpp/yaml -> drift_removed
+  expect_true("drift_removed" %in% check_types(res))
+  expect_true("yaml" %in% check_pkgs(res))
+})
+
+test_that("check on a missing dependency source names the fallback", {
+  root <- local_description_project()
+  avior_scan(root)
+  unlink(file.path(root, "DESCRIPTION"))
+  res <- avior_check(root)
+  expect_true("missing_lockfile" %in% check_types(res))
+  i <- which(check_types(res) == "missing_lockfile")
+  expect_match(res$findings[[i]]$message, "DESCRIPTION", fixed = TRUE)
+})

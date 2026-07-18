@@ -289,3 +289,28 @@ test_that("mock engine emits fixture-declared NA causes", {
   res <- eng$assess("jsonlite", "1.8.8", c("has_news", "remote_checks"), list())
   expect_identical(res$na_cause, c(NA_character_, "version"))
 })
+
+test_that("riskmetric seam accepts an unpinned (empty) inventory version (#22)", {
+  # DESCRIPTION-sourced inventories pin no version: the installed version is
+  # the assessment subject, and remote containment compares against it
+  api <- fake_riskmetric_api(version = "1.0.0")
+  res <- avior:::riskmetric_assess(
+    "demo", "", c("has_news", "remote_checks"),
+    list(network_available = TRUE), api
+  )
+  expect_identical(res$status, c("ok", "ok"))
+
+  # a remote release NEWER than the installed version is still contained
+  api2 <- fake_riskmetric_api(version = "1.0.0", remote_version = "2.0.0")
+  res2 <- avior:::riskmetric_assess(
+    "demo", "", "remote_checks", list(network_available = TRUE), api2
+  )
+  expect_true(is.na(res2$value[[1]]))
+  expect_identical(res2$na_cause[[1]], "version")
+
+  # a malformed NON-empty version must still fail the comparison (closed)
+  expect_error(
+    avior:::riskmetric_assess("demo", "not-a-version", "has_news", list(), api),
+    class = "avior_error"
+  )
+})

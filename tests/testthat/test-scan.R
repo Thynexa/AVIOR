@@ -90,3 +90,60 @@ test_that("scan records the lockfile sha256 drift baseline (FR-SCAN-5)", {
   expect_identical(inv$lockfile$sha256,
                    avior:::sha256_file(file.path(root, "renv.lock")))
 })
+
+# -- DESCRIPTION fallback (FR-SCAN-1, #22) ------------------------------------
+
+test_that("scan falls back to DESCRIPTION and records the source", {
+  root <- local_description_project()
+  inv <- avior_scan(root)
+
+  expect_identical(inv$lockfile$path, "DESCRIPTION")
+  expect_identical(inv$lockfile$sha256,
+                   avior:::sha256_file(file.path(root, "DESCRIPTION")))
+  names <- vapply(inv$packages, function(p) p$name, character(1))
+  expect_identical(names, c("MASS", "Rcpp", "jsonlite", "yaml"))
+
+  by_name <- stats::setNames(inv$packages, names)
+  # no pinned versions in this source
+  expect_identical(by_name$jsonlite$version, "")
+  # classification still applies (vendored recommended set by name)
+  expect_identical(by_name$MASS$classification, "recommended")
+  expect_identical(by_name$jsonlite$classification, "contributed")
+  # direct detection via R/ source calls keeps working
+  expect_identical(by_name$jsonlite$role, "direct")
+  expect_match(by_name$jsonlite$source, "use.R", fixed = TRUE)
+  # a declared dependency without call-site evidence falls back to the
+  # dependency source file, not the literal "renv.lock"
+  expect_identical(by_name$yaml$role, "transitive")
+  expect_identical(by_name$yaml$source, "DESCRIPTION")
+})
+
+test_that("DESCRIPTION-based scan output is deterministic across reruns", {
+  root <- local_description_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+  first <- readBin(p, "raw", file.size(p))
+  avior_scan(root)
+  expect_identical(readBin(p, "raw", file.size(p)), first)
+})
+
+test_that("scan keeps failing closed when no dependency source exists", {
+  root <- local_description_project()
+  unlink(file.path(root, "DESCRIPTION"))
+  expect_error(avior_scan(root), regexp = "lockfile not found",
+               class = "avior_error")
+})
+
+test_that("scan aborts on a malformed DESCRIPTION fallback", {
+  root <- local_description_project()
+  writeLines("Title: not a package", file.path(root, "DESCRIPTION"))
+  expect_error(avior_scan(root), class = "avior_error")
+})
+
+test_that("renv.lock stays authoritative when both sources exist", {
+  root <- local_example_project()
+  writeLines(c("Package: shadow", "Imports: nothingreal"),
+             file.path(root, "DESCRIPTION"))
+  inv <- avior_scan(root)
+  expect_identical(inv$lockfile$path, "renv.lock")
+})

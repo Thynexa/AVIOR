@@ -8,18 +8,24 @@
 check_drift <- function(cfg, inventory) {
   findings <- list()
   add <- function(f) findings[[length(findings) + 1L]] <<- f
-  lock_path <- file.path(cfg$root, cfg$scope$lockfile)
-  if (!file.exists(lock_path)) {
+  # same resolution as scan (FR-SCAN-1): renv.lock, DESCRIPTION fallback.
+  # If renv.lock appeared after a DESCRIPTION-based scan, the resolved
+  # source (and its hash) changes and the drift rules below fire — the
+  # inventory must be regenerated from the now-authoritative lockfile.
+  dep_src <- tryCatch(resolve_dep_source(cfg$root, cfg$scope$lockfile),
+                      avior_error = function(e) NULL)
+  if (is.null(dep_src)) {
     add(finding("-", "missing_lockfile",
-                paste0("lockfile not found: ", cfg$scope$lockfile),
+                paste0("dependency source not found: ", cfg$scope$lockfile,
+                       " (no DESCRIPTION fallback present)"),
                 fix = "restore the lockfile or fix scope.lockfile"))
     return(findings)
   }
-  if (identical(sha256_file(lock_path), inventory$lockfile$sha256)) {
+  if (identical(sha256_file(dep_src$file), inventory$lockfile$sha256)) {
     return(findings)
   }
 
-  lock <- read_renv_lock(lock_path)
+  lock <- dep_src$read()
   inv_names <- vapply(inventory$packages, function(p) p$name, character(1))
   inv_versions <- stats::setNames(
     vapply(inventory$packages, function(p) p$version, character(1)), inv_names)
@@ -44,9 +50,10 @@ check_drift <- function(cfg, inventory) {
     }
   }
   if (length(findings) == 0) {
-    # hash differs but same package set/versions (formatting, ordering, ...)
+    # hash differs but same package set/versions (formatting, ordering, or a
+    # source switch such as renv.lock replacing the DESCRIPTION fallback)
     add(finding("-", "drift_lockfile",
-                "lockfile content changed since the last scan",
+                "dependency source content changed since the last scan",
                 fix = "run `avior scan` to refresh the drift baseline"))
   }
   findings
@@ -181,7 +188,7 @@ check_scope_refs <- function(cfg, inventory) {
   # check_excluded_present): after the user fixes avior.yml or the lockfile,
   # this rule must not keep reporting a now-false fact
   present <- tryCatch(
-    read_renv_lock(file.path(cfg$root, cfg$scope$lockfile))$name,
+    resolve_dep_source(cfg$root, cfg$scope$lockfile)$read()$name,
     error = function(e) vapply(inventory$packages, function(p) p$name, character(1)))
   for (field in c("include", "exclude")) {
     for (pkg in sort_c(setdiff(cfg$scope[[field]], present))) {
@@ -202,7 +209,7 @@ check_excluded_present <- function(cfg, inventory) {
   # the dependency (the suggested fix) but before a re-scan, this rule must
   # not keep reporting a now-false fact; the stale inventory is the fallback
   present <- tryCatch(
-    read_renv_lock(file.path(cfg$root, cfg$scope$lockfile))$name,
+    resolve_dep_source(cfg$root, cfg$scope$lockfile)$read()$name,
     error = function(e) vapply(inventory$packages, function(p) p$name, character(1)))
   dec_dir <- file.path(cfg$paths$validation, "decisions")
   for (f in sort_c(list.files(dec_dir, pattern = "\\.yml$", full.names = TRUE))) {

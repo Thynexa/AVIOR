@@ -85,3 +85,54 @@ test_that("base packages classify as base", {
   cls <- avior:::classify_packages(lock, cfg)
   expect_identical(cls$classification, "base")
 })
+
+# -- DESCRIPTION fallback (FR-SCAN-1, #22) ------------------------------------
+
+test_that("read_description_deps inventories Depends/Imports/LinkingTo", {
+  root <- local_description_project()
+  df <- avior:::read_description_deps(file.path(root, "DESCRIPTION"))
+  # R itself excluded; constraint stripped; continuation line parsed;
+  # C-locale name order
+  expect_identical(df$name, c("MASS", "Rcpp", "jsonlite", "yaml"))
+  expect_identical(df$version, rep("", 4L))
+  expect_identical(df$source, rep("", 4L))
+  expect_identical(unclass(df$requirements), rep(list(character(0)), 4L))
+})
+
+test_that("read_description_deps deduplicates across fields", {
+  path <- tempfile("DESCRIPTION-")
+  writeLines(c("Package: demo", "Depends: jsonlite", "Imports: jsonlite (>= 1.0)"),
+             path)
+  df <- avior:::read_description_deps(path)
+  expect_identical(df$name, "jsonlite")
+})
+
+test_that("read_description_deps fails closed on malformed input", {
+  missing <- tempfile("DESCRIPTION-")
+  expect_error(avior:::read_description_deps(missing), class = "avior_error")
+
+  not_a_pkg <- tempfile("DESCRIPTION-")
+  writeLines("Title: no package field", not_a_pkg)
+  expect_error(avior:::read_description_deps(not_a_pkg),
+               regexp = "no Package field", class = "avior_error")
+
+  bad_name <- tempfile("DESCRIPTION-")
+  writeLines(c("Package: demo", "Imports: 1badname"), bad_name)
+  expect_error(avior:::read_description_deps(bad_name),
+               regexp = "malformed dependency", class = "avior_error")
+})
+
+test_that("resolve_dep_source prefers renv.lock and fails closed when both absent", {
+  root <- local_description_project()
+  src <- avior:::resolve_dep_source(root, "renv.lock")
+  expect_identical(src$path, "DESCRIPTION")
+
+  writeLines('{"Packages": {}}', file.path(root, "renv.lock"))
+  src <- avior:::resolve_dep_source(root, "renv.lock")
+  expect_identical(src$path, "renv.lock")
+
+  empty <- tempfile("empty-")
+  dir.create(empty)
+  expect_error(avior:::resolve_dep_source(empty, "renv.lock"),
+               regexp = "DESCRIPTION fallback", class = "avior_error")
+})

@@ -5,8 +5,8 @@
 avior_scan <- function(root = ".") {
   cfg <- avior_config_load(root)
 
-  lock_path <- file.path(root, cfg$scope$lockfile)
-  lock <- classify_packages(read_renv_lock(lock_path), cfg)
+  dep_src <- resolve_dep_source(root, cfg$scope$lockfile)
+  lock <- classify_packages(dep_src$read(), cfg)
 
   direct <- if (identical(cfg$scope$intended_for_use, "explicit")) {
     n <- length(cfg$scope$include)
@@ -38,7 +38,7 @@ avior_scan <- function(root = ".") {
     src <- if (role == "direct") {
       if (is.na(hit$line[1])) hit$file[1] else paste0(hit$file[1], ":", hit$line[1])
     } else {
-      transitive_source(lock, name)
+      transitive_source(lock, name, default = dep_src$path)
     }
 
     default_in_scope <- role == "direct" && classification %in% c("contributed", "custom")
@@ -88,7 +88,9 @@ avior_scan <- function(root = ".") {
   inventory <- list(
     avior = 1L,
     generated_by = "avior scan",
-    lockfile = list(path = cfg$scope$lockfile, sha256 = sha256_file(lock_path)),
+    # `path` records which source produced this inventory (renv.lock or the
+    # DESCRIPTION fallback, FR-SCAN-1); the hash is the drift baseline
+    lockfile = list(path = dep_src$path, sha256 = sha256_file(dep_src$file)),
     packages = entries,
     summary = yaml_flow(list(
       total = nrow(lock),

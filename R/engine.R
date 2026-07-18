@@ -150,21 +150,30 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
   api <- api %||% riskmetric_api()
   ref <- api$pkg_ref(pkg)
   actual <- as.character(ref$version)
+  # A DESCRIPTION-sourced inventory (FR-SCAN-1 fallback) pins no version:
+  # the installed version is the assessment subject. Only a genuinely empty
+  # requirement is unpinned — a malformed non-empty version must still fail
+  # the comparison below, never silently pass.
+  required <- as.character(version)
+  unpinned <- length(required) != 1 || is.na(required) || !nzchar(required)
   # pkg_ref() on a package absent from the assessment library yields a ref
   # without a version; "not installed" must be named as the cause instead of
   # degrading into a mismatch message with an empty version string.
   if (length(actual) != 1 || is.na(actual) || !nzchar(actual)) {
     avior_abort(paste0(
       pkg, " is not installed in the assessment library",
-      " (inventory requires ", version, ")"
+      if (unpinned) "" else paste0(" (inventory requires ", version, ")")
     ))
   }
-  if (!same_package_version(actual, version)) {
+  if (!unpinned && !same_package_version(actual, required)) {
     avior_abort(paste0(
       "riskmetric resolved ", pkg, " ", actual,
       " but inventory requires ", version
     ))
   }
+  # remote_checks containment compares against the effective subject: the
+  # pinned version, or the installed one when the inventory pins nothing.
+  target <- if (unpinned) actual else required
 
   values <- stats::setNames(rep(NA_real_, length(metric_ids)), metric_ids)
   causes <- stats::setNames(rep(NA_character_, length(metric_ids)), metric_ids)
@@ -175,7 +184,7 @@ riskmetric_assess <- function(pkg, version, metric_ids, opts, api = NULL) {
                        error = function(e) NULL)
     remote_version_known <- !is.null(remote) &&
       known_package_version(remote$version)
-    if (remote_version_known && !same_package_version(remote$version, version)) {
+    if (remote_version_known && !same_package_version(remote$version, target)) {
       # CONFIRMED containment: CRAN latest is a different release than the
       # pinned version, so its check results must not be attributed here —
       # and going online again cannot heal this NA. Cause `version` keeps it

@@ -30,6 +30,37 @@ local_example_project <- function(env = parent.frame()) {
   root
 }
 
+# A package project WITHOUT renv.lock: DESCRIPTION is the dependency source
+# (FR-SCAN-1 fallback). Deps chosen to exercise classification (MASS is a
+# vendored recommended name) and direct-call detection (jsonlite:: in R/).
+local_description_project <- function(env = parent.frame()) {
+  root <- tempfile("desc-proj-")
+  dir.create(file.path(root, "R"), recursive = TRUE)
+  dir.create(file.path(root, "validation"))
+  writeLines(c(
+    "Package: descdemo",
+    "Version: 0.1.0",
+    "Depends: R (>= 4.1), MASS",
+    "Imports: jsonlite (>= 1.8.0),",
+    "    yaml",
+    "LinkingTo: Rcpp"
+  ), file.path(root, "DESCRIPTION"))
+  writeLines("res <- jsonlite::fromJSON(\"[]\")", file.path(root, "R", "use.R"))
+  writeLines(c(
+    "avior: 1",
+    "project:",
+    "  name: descdemo",
+    "  validation_dir: validation",
+    "policy:",
+    "  engine: riskmetric",
+    "  weights:",
+    "    has_news: 1.0",
+    "  rationale: fixture rationale for DESCRIPTION-fallback tests"
+  ), file.path(root, "validation", "avior.yml"))
+  withr_defer_dir(root, env)
+  root
+}
+
 # Minimal withr::defer replacement (avoid adding withr to Suggests).
 withr_defer_dir <- function(path, env) {
   call <- bquote(unlink(.(path), recursive = TRUE, force = TRUE))

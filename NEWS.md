@@ -19,6 +19,13 @@
   finding (gate red, exit 1), judged against the live lockfile with the
   inventory as fallback. The scan-time warning remains, but a transient
   console warning is not auditable and never blocked CI (#24).
+* `avior scan` — falls back to `DESCRIPTION` (Depends/Imports/LinkingTo)
+  when the configured lockfile is absent (FR-SCAN-1). The inventory
+  records which source produced it (`lockfile.path`); versions stay empty
+  rather than fabricated (this source pins nothing), and `avior assess`
+  treats an unpinned inventory version as "the installed version is the
+  subject". `check` drift and scope rules resolve the same source; when
+  neither file exists, scan and check keep failing closed (#22).
 * `avior init --ci github|gitlab` (FR-INIT-3) — generates a deterministic
   CI workflow (`.github/workflows/avior.yml` or `.gitlab-ci.yml`) that
   runs the read-only `avior check` gate against the committed validation
