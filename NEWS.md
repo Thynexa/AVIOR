@@ -10,6 +10,10 @@
   byte-identical output (#27). An unreadable remote version stays a
   cause-less, retryable NA (the spike's all-NA shape — see
   `docs/riskmetric-spike-results.md`).
+* `avior assess --refresh-na true|false` — the CLI now exposes the R
+  API's `refresh_na` argument: `false` makes every valid cache entry a
+  full hit (no online retry of network-cause NA metrics); duplicates and
+  values other than `true|false` are execution errors (exit 2) (#23).
 
 Milestone M1 of the PRD (v1.6 contracts), merged via PRs #17–#19.
 

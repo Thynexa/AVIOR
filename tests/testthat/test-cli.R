@@ -147,6 +147,72 @@ test_that("JSON collection fields are always arrays (0/1/2 elements)", {
   })
 })
 
+test_that("assess --refresh-na maps to refresh_na and gates cache retries (#23)", {
+  metrics <- c("has_vignettes", "has_news", "has_bug_reports_url",
+               "downloads_1yr", "covr_coverage", "last_30_bugs_status")
+  vals <- stats::setNames(as.list(rep(0.9, length(metrics))), metrics)
+  vals$downloads_1yr <- NULL   # network metric that stays NA -> refreshable
+  pkgs <- c("jsonlite", "lme4", "mvtnorm", "survival")
+  counter <- new.env(); counter$n <- 0L
+  eng <- avior:::mock_engine(
+    stats::setNames(rep(list(vals), length(pkgs)), pkgs),
+    id = "mock-cli",
+    network_metrics = "downloads_1yr",
+    execution_metrics = "covr_coverage",
+    counter = counter
+  )
+  avior:::engine_register(eng)
+  on.exit(rm("mock-cli", envir = avior:::engines_env), add = TRUE)
+
+  root <- local_example_project()
+  f <- file.path(root, "validation", "avior.yml")
+  writeLines(sub("engine: riskmetric", "engine: mock-cli", readLines(f)), f)
+
+  with_dir(root, {
+    expect_identical(main(c("scan")), 0L)
+    expect_identical(main(c("assess", "--deep")), 0L)
+    n1 <- counter$n
+    expect_identical(n1, 4L)
+
+    # default (refresh_na = TRUE): every package retries its network NA
+    expect_identical(main(c("assess", "--deep")), 0L)
+    expect_identical(counter$n, n1 + 4L)
+
+    # --refresh-na false: valid cache entries are full hits, zero engine calls
+    expect_identical(main(c("assess", "--deep", "--refresh-na", "false")), 0L)
+    expect_identical(counter$n, n1 + 4L)
+    out <- capture.output(
+      code <- main(c("assess", "--deep", "--refresh-na", "false",
+                     "--format", "json")))
+    expect_identical(code, 0L)
+    expect_identical(jsonlite::fromJSON(paste(out, collapse = "\n"))$status, "ok")
+    expect_identical(counter$n, n1 + 4L)
+
+    # --refresh-na true: explicit form of the default
+    expect_identical(main(c("assess", "--deep", "--refresh-na", "true")), 0L)
+    expect_identical(counter$n, n1 + 8L)
+  })
+})
+
+test_that("assess --refresh-na rejects duplicates and invalid values (exit 2)", {
+  root <- local_example_project()
+  with_dir(root, {
+    bad <- list(
+      c("assess", "--refresh-na"),                            # missing value
+      c("assess", "--refresh-na", "maybe"),                   # invalid value
+      c("assess", "--refresh-na", "true", "--refresh-na", "false")  # duplicate
+    )
+    for (argv in bad) {
+      expect_identical(suppressMessages(main(argv)), 2L)
+      out <- capture.output(
+        code <- suppressMessages(main(c(argv, "--format", "json"))))
+      expect_identical(code, 2L)
+      expect_identical(
+        jsonlite::fromJSON(paste(out, collapse = "\n"))$status, "error")
+    }
+  })
+})
+
 test_that("unknown/unconsumed command arguments are rejected (exit 2)", {
   root <- local_example_project()
   with_dir(root, {

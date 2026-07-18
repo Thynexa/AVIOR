@@ -60,7 +60,7 @@ Every scope decision is checked against these three axioms before it can enter t
 ```bash
 avior init      # ✅ scaffold policy file skeleton and directory structure (idempotent)
 avior scan      # ✅ identify dependencies from renv.lock: classification + direct/transitive
-avior assess    # ✅ batch risk scoring via the engine adapter layer (riskmetric; --deep, --offline, --only)
+avior assess    # ✅ batch risk scoring via the engine adapter layer (riskmetric; --deep, --offline, --only, --refresh-na true|false)
 avior review    # ✅ generate decision-record stubs; validate completeness/sign-off
 avior test      # ⏳ M2: run targeted testthat tests for medium/high-risk packages
 avior bundle    # ⏳ M2: compile an immutable evidence bundle (report + traceability + fingerprint + manifest)
@@ -187,7 +187,7 @@ AVIOR 把「依赖识别 → 风险评分 → 决策留痕 → 定向测试 → 
 ```bash
 avior init      # ✅ 生成策略骨架与目录结构（幂等）
 avior scan      # ✅ 从 renv.lock 识别依赖：三分类 + direct/transitive
-avior assess    # ✅ 经适配层（riskmetric）批量风险评分（--deep / --offline / --only）
+avior assess    # ✅ 经适配层（riskmetric）批量风险评分（--deep / --offline / --only / --refresh-na true|false）
 avior review    # ✅ 生成决策记录桩 + 完整性/署名校验
 avior test      # ⏳ M2：运行中高风险包的定向 testthat 测试
 avior bundle    # ⏳ M2：编译不可变证据包（报告 + 追溯矩阵 + 环境指纹 + 哈希清单）
