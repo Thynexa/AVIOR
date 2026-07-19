@@ -10,4 +10,5 @@
 ^\.lintr$
 ^renv\.lock$
 ^README\.md$
+^LICENSE\.md$
 ^tools$

@@ -20,14 +20,21 @@ knitr::opts_chunk$set(
 
 AVIOR is a **local-first evidence compiler for R package validation** in
 regulated environments (FDA / EMA / NMPA submissions). It takes your dependency
-manifest (`renv.lock`) and a validation policy as input, and produces a
-structured, tamper-evident, signature-ready evidence bundle. Like `pytest` or
-`terraform`, it lives in your repository and your CI rather than on a server.
+manifest (`renv.lock`) and a validation policy as input and compiles them into
+structured, version-controlled validation evidence — an inventory, risk scores,
+and decision records that live in your repository. Like `pytest` or `terraform`,
+it lives in your repository and your CI rather than on a server.
 
-This vignette walks through the M1 core loop: `init` → `scan` → `assess` →
+This vignette walks through the **M1 core loop**: `init` → `scan` → `assess` →
 `review`, plus the `check` CI gate. Every command has both an R function
 (`avior_*()`) and a CLI form (`avior <command>`); this vignette uses the R
 functions.
+
+AVIOR's end goal is to compile these artifacts into a single, tamper-evident,
+signature-ready evidence **bundle** with a SHA-256 manifest. That step
+(`bundle` / `verify`, FR-BUNDLE in the PRD) is a **later milestone (M2)** and is
+not yet implemented — following this vignette produces the underlying
+version-controlled artifacts, not a bundle.
 
 ```{r setup}
 library(avior)
@@ -142,6 +149,7 @@ avior::main(c("check"))
   requirements document, `docs/PRD.md` (§6), which is the project's development
   baseline.
 
-> AVIOR produces a signature-ready bundle; signing and controlled archival stay
-> in your existing QMS. Compliance responsibility always remains with the
-> sponsor.
+> The M1 commands produce version-controlled validation artifacts. Compiling
+> them into a signature-ready **bundle** and verifying it (`bundle` / `verify`)
+> is a later milestone (M2). Signing and controlled archival always stay in your
+> existing QMS, and compliance responsibility always remains with the sponsor.
