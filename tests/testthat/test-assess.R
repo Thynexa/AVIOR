@@ -355,6 +355,85 @@ test_that("network NA refresh re-runs only the improvable metrics", {
   expect_false(is.null(s$packages$jsonlite$score))
 })
 
+test_that("version-cause NAs never refresh: pinned-older packages are true cache hits (#27)", {
+  # the pinned-below-CRAN-latest scenario: remote_checks is NA because the
+  # engine CONFIRMED the version mismatch. A repeated online assess must be
+  # a genuine cache hit — zero engine calls, byte-identical output — not a
+  # once-per-run retry that can never succeed.
+  vals <- mock_values()
+  vals$jsonlite$downloads_1yr <- NULL          # stands in for remote_checks
+  counter <- new.env(); counter$n <- 0L; counter$ids <- character(0)
+  eng <- avior:::mock_engine(
+    vals, network_metrics = "downloads_1yr",
+    execution_metrics = "covr_coverage",
+    na_causes = list(jsonlite = list(downloads_1yr = "version")),
+    counter = counter
+  )
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+  n1 <- counter$n
+  p <- file.path(root, "validation", "scores.yml")
+  first <- readBin(p, "raw", file.size(p))
+
+  avior_assess(root, engine = eng, deep = TRUE)
+  expect_identical(counter$n, n1)                       # zero engine calls
+  expect_identical(readBin(p, "raw", file.size(p)), first)
+  s <- avior:::read_yaml_file(p)
+  expect_true("downloads_1yr" %in% unlist(s$packages$jsonlite$na_metrics))
+})
+
+test_that("refreshing one metric preserves the version cause on another (#27)", {
+  vals <- mock_values()
+  vals$jsonlite$downloads_1yr <- NULL   # version-contained, must not retry
+  vals$jsonlite$has_news <- NULL        # network-cause NA, retried each run
+  counter <- new.env(); counter$n <- 0L; counter$ids <- character(0)
+  eng <- avior:::mock_engine(
+    vals, network_metrics = c("downloads_1yr", "has_news"),
+    execution_metrics = "covr_coverage",
+    na_causes = list(jsonlite = list(downloads_1yr = "version")),
+    counter = counter
+  )
+  root <- local_example_project()
+  avior_scan(root)
+  avior_assess(root, engine = eng, deep = TRUE)
+  n1 <- counter$n
+
+  counter$ids <- character(0)
+  avior_assess(root, engine = eng, deep = TRUE)
+  expect_identical(counter$n, n1 + 1L)            # one refresh call ...
+  expect_identical(counter$ids, "has_news")       # ... scoped to the network NA
+
+  # the rebuilt cache entry must keep `version` on the non-refreshed metric,
+  # not downgrade it to the registry default and re-enable the retry loop
+  cache_files <- list.files(
+    file.path(root, "validation", ".cache", "scores"), full.names = TRUE)
+  entries <- lapply(cache_files, avior:::read_yaml_file)
+  entry <- entries[[which(vapply(entries, function(e) {
+    identical(e$package, "jsonlite")
+  }, logical(1)))]]
+  expect_identical(entry$na_causes$downloads_1yr, "version")
+  expect_identical(entry$na_causes$has_news, "network")
+})
+
+test_that("engines returning invalid NA causes abort (7.2 contract)", {
+  vals <- mock_values()
+  vals$jsonlite$downloads_1yr <- NULL
+  bad_cause <- avior:::mock_engine(
+    vals, network_metrics = "downloads_1yr",
+    na_causes = list(jsonlite = list(downloads_1yr = "cosmic_rays")))
+  cause_on_ok <- avior:::mock_engine(
+    vals, network_metrics = "downloads_1yr",
+    na_causes = list(jsonlite = list(has_news = "version")))
+  for (eng in list(bad_cause, cause_on_ok)) {
+    root <- local_example_project()
+    unlink(file.path(root, "validation", ".cache"), recursive = TRUE)
+    avior_scan(root)
+    expect_error(avior_assess(root, engine = eng, deep = TRUE),
+                 regexp = "invalid NA causes", class = "avior_error")
+  }
+})
+
 test_that("--only restricts fresh scoring to the named package (FR-ASSESS-5)", {
   counter <- new.env(); counter$n <- 0L
   eng <- avior:::mock_engine(mock_values(), execution_metrics = "covr_coverage",

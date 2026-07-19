@@ -18,6 +18,9 @@ jobs:
     timeout-minutes: 40
     env:
       AVIOR_SPIKE_PACKAGES: ${{ inputs.packages || '5' }}
+      # name the remote_checks containment branch per package in the job log
+      # (#27 root-cause evidence); does not affect the assessment result
+      AVIOR_DIAG_REMOTE: '1'
     steps:
       - uses: actions/checkout@v6
         with:

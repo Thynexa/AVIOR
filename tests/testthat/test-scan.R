@@ -90,3 +90,154 @@ test_that("scan records the lockfile sha256 drift baseline (FR-SCAN-5)", {
   expect_identical(inv$lockfile$sha256,
                    avior:::sha256_file(file.path(root, "renv.lock")))
 })
+
+# -- DESCRIPTION fallback (FR-SCAN-1, #22) ------------------------------------
+
+test_that("scan falls back to DESCRIPTION and records the source", {
+  root <- local_description_project()
+  inv <- avior_scan(root)
+
+  expect_identical(inv$lockfile$path, "DESCRIPTION")
+  expect_identical(inv$lockfile$sha256,
+                   avior:::sha256_file(file.path(root, "DESCRIPTION")))
+  names <- vapply(inv$packages, function(p) p$name, character(1))
+  expect_identical(names, c("MASS", "Rcpp", "jsonlite", "yaml"))
+
+  by_name <- stats::setNames(inv$packages, names)
+  # no pinned versions in this source
+  expect_identical(by_name$jsonlite$version, "")
+  # classification still applies (vendored recommended set by name)
+  expect_identical(by_name$MASS$classification, "recommended")
+  expect_identical(by_name$jsonlite$classification, "contributed")
+  # direct detection via R/ source calls keeps working
+  expect_identical(by_name$jsonlite$role, "direct")
+  expect_match(by_name$jsonlite$source, "use.R", fixed = TRUE)
+  # a declared dependency without call-site evidence records its declaring
+  # DESCRIPTION field (FR-SCAN-3), not the literal "renv.lock"
+  expect_identical(by_name$yaml$role, "transitive")
+  expect_identical(by_name$yaml$source, "DESCRIPTION Imports")
+  expect_identical(by_name$MASS$source, "DESCRIPTION Depends")
+  expect_identical(by_name$Rcpp$source, "DESCRIPTION LinkingTo")
+})
+
+test_that("DESCRIPTION-based scan output is deterministic across reruns", {
+  root <- local_description_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+  first <- readBin(p, "raw", file.size(p))
+  avior_scan(root)
+  expect_identical(readBin(p, "raw", file.size(p)), first)
+})
+
+test_that("scan keeps failing closed when no dependency source exists", {
+  root <- local_description_project()
+  unlink(file.path(root, "DESCRIPTION"))
+  expect_error(avior_scan(root), regexp = "lockfile not found",
+               class = "avior_error")
+})
+
+test_that("scan aborts on a malformed DESCRIPTION fallback", {
+  root <- local_description_project()
+  writeLines("Title: not a package", file.path(root, "DESCRIPTION"))
+  expect_error(avior_scan(root), class = "avior_error")
+})
+
+test_that("renv.lock stays authoritative when both sources exist", {
+  root <- local_example_project()
+  writeLines(c("Package: shadow", "Imports: nothingreal"),
+             file.path(root, "DESCRIPTION"))
+  inv <- avior_scan(root)
+  expect_identical(inv$lockfile$path, "renv.lock")
+})
+
+# -- inventory ownership across rescans (#26) ---------------------------------
+
+test_that("rescan preserves the supported note: annotation (#26)", {
+  root <- local_example_project()
+  p <- file.path(root, "validation", "inventory.yml")
+  # the fixture (frozen M0 example) ships hand-written notes on minqa and
+  # survival: a rescan must carry them over, not discard them
+  expect_no_warning(avior_scan(root))
+  inv <- avior:::read_yaml_file(p)
+  by_name <- stats::setNames(
+    inv$packages, vapply(inv$packages, function(x) x$name, character(1)))
+  expect_match(by_name$minqa$note, "间接依赖")
+  expect_true(nzchar(by_name$survival$note))
+  expect_null(by_name$jsonlite$note)
+
+  # rescans stay deterministic with notes present
+  first <- readBin(p, "raw", file.size(p))
+  expect_no_warning(avior_scan(root))
+  expect_identical(readBin(p, "raw", file.size(p)), first)
+
+  # a note whose package left the dependency source disappears with its row
+  # (drift handling owns that lifecycle), while others keep theirs
+  lock <- file.path(root, "renv.lock")
+  parsed <- jsonlite::fromJSON(lock, simplifyVector = FALSE)
+  parsed$Packages$minqa <- NULL
+  writeLines(jsonlite::toJSON(parsed, auto_unbox = TRUE), lock)
+  expect_no_warning(avior_scan(root))
+  inv <- avior:::read_yaml_file(p)
+  names2 <- vapply(inv$packages, function(x) x$name, character(1))
+  expect_false("minqa" %in% names2)
+  by_name2 <- stats::setNames(inv$packages, names2)
+  expect_true(nzchar(by_name2$survival$note))
+})
+
+test_that("rescan warns before discarding unsupported inventory fields (#26)", {
+  root <- local_example_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+  pristine <- readBin(p, "raw", file.size(p))
+
+  # an UNSUPPORTED hand-added key: the file is machine-owned, so the rescan
+  # rewrites it, but never silently — the warning names the package, the
+  # field, and where human input belongs (note: / decision records)
+  txt <- readLines(p)
+  i <- grep("name: jsonlite", txt)[1]
+  txt[i] <- sub("\\}$", ", reviewer_remark: looks fine}", txt[i])
+  writeLines(txt, p)
+  expect_warning(avior_scan(root), "reviewer_remark.*decision records")
+
+  # deterministic: the rescan result is byte-identical to the pristine scan
+  expect_identical(readBin(p, "raw", file.size(p)), pristine)
+
+  # a clean rescan stays silent
+  expect_no_warning(avior_scan(root))
+})
+
+test_that("rescan warns about discarded top-level hand edits (#26 review)", {
+  root <- local_example_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+  pristine <- readBin(p, "raw", file.size(p))
+
+  writeLines(c(readLines(p), "audit_owner: Alice"), p)
+  expect_warning(avior_scan(root), "top-level \\(audit_owner\\)")
+  expect_identical(readBin(p, "raw", file.size(p)), pristine)
+  expect_no_warning(avior_scan(root))
+})
+
+test_that("scan fails closed on an unreadable existing inventory (#26 review)", {
+  # a hand edit that leaves the file temporarily malformed may carry a
+  # supported note:; "parse error -> overwrite" would discard it silently
+  root <- local_example_project()
+  avior_scan(root)
+  p <- file.path(root, "validation", "inventory.yml")
+
+  writeLines(c(readLines(p), "  ]broken: ["), p)
+  corrupted <- readBin(p, "raw", file.size(p))
+  expect_error(avior_scan(root), regexp = "not readable",
+               class = "avior_error")
+  # the malformed file (and any note inside it) is left untouched
+  expect_identical(readBin(p, "raw", file.size(p)), corrupted)
+
+  # explicit recovery: fixing the file keeps the notes and rescans cleanly
+  txt <- readLines(p, encoding = "UTF-8")
+  writeLines(txt[-length(txt)], p, useBytes = TRUE)
+  expect_no_warning(avior_scan(root))
+  inv <- avior:::read_yaml_file(p)
+  notes <- Filter(Negate(is.null),
+                  lapply(inv$packages, function(x) x$note))
+  expect_length(notes, 2L)   # minqa + survival notes survived the incident
+})

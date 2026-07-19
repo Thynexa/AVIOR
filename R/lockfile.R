@@ -44,6 +44,8 @@ read_renv_lock <- function(path) {
     stringsAsFactors = FALSE
   )
   if (any(!nzchar(df$name))) avior_abort(paste0(path, ": package entry without a name"))
+  # provenance column used by the DESCRIPTION fallback; empty for renv rows
+  df$declared_in <- rep("", nrow(df))
   df$requirements <- I(lapply(pkgs, function(p) as.character(unlist(p$Requirements))))
   df <- df[order_c(df$name), , drop = FALSE]
   rownames(df) <- NULL
@@ -51,14 +53,98 @@ read_renv_lock <- function(path) {
   df
 }
 
+# FR-SCAN-1 fallback: a package project without renv still declares its
+# dependency surface in DESCRIPTION (Depends/Imports/LinkingTo). This source
+# carries no pinned versions, no repository provenance and no transitive
+# closure — those fields stay empty rather than being guessed, and the
+# inventory records DESCRIPTION as its source so downstream consumers can
+# tell the two apart.
+read_description_deps <- function(path) {
+  if (!file.exists(path)) {
+    avior_abort(paste0("DESCRIPTION not found: ", path))
+  }
+  dcf <- tryCatch(read.dcf(path), error = function(e) {
+    avior_abort(paste0("cannot parse ", path, ": ", conditionMessage(e)))
+  })
+  if (nrow(dcf) < 1 || !"Package" %in% colnames(dcf) ||
+      is.na(dcf[1, "Package"]) || !nzchar(dcf[1, "Package"])) {
+    avior_abort(paste0(path, ": not a package DESCRIPTION (no Package field)"))
+  }
+
+  # FR-SCAN-3: keep the declaring field per package — "an unused Imports
+  # dependency" and "a LinkingTo dependency" are different provenance facts.
+  # Fields are parsed in canonical order, so a package declared in several
+  # fields gets a deterministic joined record (e.g. "Depends+Imports").
+  declared <- list()
+  bad <- character(0)
+  for (field in intersect(c("Depends", "Imports", "LinkingTo"),
+                          colnames(dcf))) {
+    value <- dcf[1, field]
+    if (is.na(value)) next
+    raw <- unlist(strsplit(value, ",", fixed = TRUE))
+    # strip version constraints ("jsonlite (>= 1.8.0)") and whitespace; the
+    # constraint is a range, not a pinned version — recording it as `version`
+    # would fabricate a precision the source does not have. DCF continuation
+    # lines keep their newlines, so collapse all whitespace first.
+    raw <- gsub("[[:space:]]+", " ", raw)
+    names_clean <- trimws(sub("\\(.*$", "", raw))
+    names_clean <- setdiff(names_clean[nzchar(names_clean)], "R")
+    bad <- c(bad, names_clean[!grepl("^[A-Za-z][A-Za-z0-9.]*$", names_clean)])
+    for (nm in unique(names_clean)) {
+      declared[[nm]] <- unique(c(declared[[nm]], field))
+    }
+  }
+  if (length(bad) > 0) {
+    avior_abort(paste0(path, ": malformed dependency name(s): ",
+                       paste(unique(bad), collapse = ", ")))
+  }
+
+  n <- length(declared)
+  df <- data.frame(
+    name = names(declared) %||% character(0),
+    version = rep("", n),
+    source = rep("", n),
+    repository = rep("", n),
+    priority = rep("", n),
+    remote_org = rep("", n),
+    remote_repo = rep("", n),
+    declared_in = vapply(declared, paste, character(1), collapse = "+"),
+    stringsAsFactors = FALSE
+  )
+  df$requirements <- I(rep(list(character(0)), n))
+  df <- df[order_c(df$name), , drop = FALSE]
+  rownames(df) <- NULL
+  attr(df, "r_version") <- NA_character_
+  df
+}
+
+# Dependency-source resolution (FR-SCAN-1): the configured lockfile is
+# authoritative when present; a package project without renv falls back to
+# DESCRIPTION at the project root. Fails closed when neither exists.
+# `path` is the project-relative name recorded in the inventory.
+resolve_dep_source <- function(root, lockfile) {
+  lock_path <- file.path(root, lockfile)
+  if (file.exists(lock_path)) {
+    return(list(path = lockfile, file = lock_path,
+                read = function() read_renv_lock(lock_path)))
+  }
+  desc_path <- file.path(root, "DESCRIPTION")
+  if (file.exists(desc_path)) {
+    return(list(path = "DESCRIPTION", file = desc_path,
+                read = function() read_description_deps(desc_path)))
+  }
+  avior_abort(paste0("lockfile not found: ", lock_path,
+                     " (and no DESCRIPTION fallback at ", desc_path, ")"))
+}
+
 # Provenance for a transitive package: the first (C-order) lockfile package
 # that lists it in Requirements, e.g. "lme4 Requirements"; falls back to
-# "renv.lock" when no parent is recorded.
-transitive_source <- function(lock, pkg) {
+# the dependency source file when no parent is recorded.
+transitive_source <- function(lock, pkg, default = "renv.lock") {
   has <- vapply(seq_len(nrow(lock)), function(i) pkg %in% lock$requirements[[i]],
                 logical(1))
   parents <- lock$name[has & lock$name != pkg]
-  if (length(parents) == 0) return("renv.lock")
+  if (length(parents) == 0) return(default)
   paste0(sort_c(parents)[1], " Requirements")
 }
 

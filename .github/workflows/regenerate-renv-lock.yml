@@ -1,0 +1,45 @@
+# Issue #28: regenerate renv.lock as a native renv::snapshot() artifact.
+# Manually triggered — the runner has the CRAN/RSPM access that development
+# sandboxes may lack. It runs tools/regenerate-renv-lock.R (restore the
+# pinned closure -> snapshot -> verify shape, package set, and restore) and
+# uploads the regenerated lockfile as a build artifact for review + commit.
+name: regenerate-renv-lock
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Install renv
+        run: Rscript -e 'install.packages(c("renv", "jsonlite"))'
+
+      - name: Report the committed lockfile shape
+        run: Rscript tools/regenerate-renv-lock.R --check || true
+
+      - name: Regenerate and verify
+        run: Rscript tools/regenerate-renv-lock.R
+
+      - name: Confirm the regenerated shape
+        run: Rscript tools/regenerate-renv-lock.R --check
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: renv-lock-regenerated
+          path: renv.lock
+          if-no-files-found: error

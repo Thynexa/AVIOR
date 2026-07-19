@@ -64,8 +64,17 @@ run_command <- function(opts) {
       list(command = "version", status = "ok", version = avior_version())
     },
     init = {
-      reject_extra_args(opts$args, "init")
-      res <- avior_init(".")
+      args <- opts$args
+      ci <- NULL
+      i <- which(args == "--ci")
+      if (length(i) > 1) avior_abort("--ci given more than once")
+      if (length(i) == 1) {
+        if (i == length(args)) avior_abort("--ci requires a value (github|gitlab)")
+        ci <- args[i + 1]
+        args <- args[-c(i, i + 1)]
+      }
+      reject_extra_args(args, "init")
+      res <- avior_init(".", ci = ci)
       list(command = "init", status = "ok",
            created = json_array(res$created), skipped = json_array(res$skipped))
     },
@@ -98,8 +107,25 @@ run_command <- function(opts) {
         only <- args[i + 1]
         args <- args[-c(i, i + 1)]
       }
+      # FR-X-5: refresh_na defaults to TRUE (retry network-cause NA cache
+      # entries when online); an explicit true|false value — not a bare
+      # flag — so the mapping to avior_assess(refresh_na=) stays literal
+      refresh_na <- TRUE
+      i <- which(args == "--refresh-na")
+      if (length(i) > 1) avior_abort("--refresh-na given more than once")
+      if (length(i) == 1) {
+        if (i == length(args)) avior_abort("--refresh-na requires a value (true|false)")
+        val <- args[i + 1]
+        if (!val %in% c("true", "false")) {
+          avior_abort(paste0("unsupported --refresh-na `", val,
+                             "` (expected true|false)"))
+        }
+        refresh_na <- identical(val, "true")
+        args <- args[-c(i, i + 1)]
+      }
       reject_extra_args(args, "assess")
       s <- avior_assess(".", only = only, deep = deep,
+                        refresh_na = refresh_na,
                         network_available = !offline)
       list(command = "assess", status = "ok",
            engine = unclass(s$engine), run = unclass(s$run),

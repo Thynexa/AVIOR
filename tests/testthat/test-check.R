@@ -227,6 +227,71 @@ test_that("missing inventory is a red finding pointing at scan", {
   expect_true("missing_inventory" %in% check_types(res))
 })
 
+test_that("unknown scope.include references are typed findings (#24)", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "avior.yml")
+  writeLines(sub("include: \\[survival\\]", "include: [survival, notinlock]",
+                 readLines(f)), f)
+  res <- suppressWarnings(avior_check(root))
+  expect_identical(res$status, "fail")
+  i <- which(check_types(res) == "unknown_scope_reference")
+  expect_length(i, 1L)
+  expect_identical(check_pkgs(res)[i], "notinlock")
+  expect_match(res$findings[[i]]$message, "scope.include", fixed = TRUE)
+  expect_match(res$findings[[i]]$fix, "notinlock", fixed = TRUE)
+})
+
+test_that("unknown scope.exclude references are typed findings (#24)", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "avior.yml")
+  writeLines(sub("exclude: \\[\\]", "exclude: [ghostpkg]", readLines(f)), f)
+  res <- suppressWarnings(avior_check(root))
+  expect_identical(res$status, "fail")
+  i <- which(check_types(res) == "unknown_scope_reference")
+  expect_length(i, 1L)
+  expect_identical(check_pkgs(res)[i], "ghostpkg")
+  expect_match(res$findings[[i]]$message, "scope.exclude", fixed = TRUE)
+})
+
+test_that("unknown scope references judge the LIVE lockfile, inventory fallback (#24)", {
+  # the reference is unknown to the stale inventory but present in the live
+  # lockfile: the rule must not report a now-false fact
+  root <- local_example_project()
+  f <- file.path(root, "validation", "avior.yml")
+  writeLines(sub("exclude: \\[\\]", "exclude: [zeallot]", readLines(f)), f)
+  lock <- file.path(root, "renv.lock")
+  txt <- readLines(lock)
+  addition <- '    "zeallot": { "Package": "zeallot", "Version": "0.1.0", "Source": "Repository", "Repository": "CRAN" },'
+  i <- grep('"jsonlite":', txt)[1]
+  writeLines(append(txt, addition, after = i - 1), lock)
+  res <- avior_check(root)   # fails on drift, but NOT on the scope reference
+  expect_false("unknown_scope_reference" %in% check_types(res))
+
+  # unreadable lockfile: fall back to the inventory baseline
+  unlink(lock)
+  res <- avior_check(root)
+  expect_true("unknown_scope_reference" %in% check_types(res))
+})
+
+test_that("CLI: unknown scope reference fails check with exit 1 and json finding (#24)", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "avior.yml")
+  writeLines(sub("include: \\[survival\\]", "include: [survival, notinlock]",
+                 readLines(f)), f)
+  old <- setwd(root); on.exit(setwd(old), add = TRUE)
+  out <- capture.output(code <- suppressMessages(suppressWarnings(
+    main(c("check", "--format", "json")))))
+  expect_identical(code, 1L)
+  parsed <- jsonlite::fromJSON(paste(out, collapse = "\n"),
+                               simplifyVector = FALSE)
+  expect_identical(parsed$status, "fail")
+  types <- vapply(parsed$findings, function(x) x$type, character(1))
+  expect_true("unknown_scope_reference" %in% types)
+  text_out <- capture.output(text_code <- suppressMessages(suppressWarnings(
+    main(c("check")))), type = "message")
+  expect_identical(text_code, 1L)
+})
+
 test_that("every finding names a package and carries a fix suggestion (NFR-8)", {
   root <- local_example_project()
   lock <- file.path(root, "renv.lock")
@@ -252,4 +317,49 @@ test_that("CLI: check maps pass->0, fail->1 and emits json (FR-X-3)", {
   parsed <- jsonlite::fromJSON(paste(out, collapse = "\n"), simplifyVector = FALSE)
   expect_identical(parsed$status, "fail")
   expect_true(length(parsed$findings) >= 1)
+})
+
+# -- DESCRIPTION fallback (FR-SCAN-1, #22) ------------------------------------
+
+test_that("check drift rules work on a DESCRIPTION-based project", {
+  root <- local_description_project()
+  avior_scan(root)
+  res <- avior_check(root)
+  # no drift and no missing-lockfile complaint right after a scan; the gate
+  # may still be red for other reasons (no scores/decisions yet)
+  expect_false(any(check_types(res) %in%
+                   c("missing_lockfile", "drift_added", "drift_removed",
+                     "drift_version", "drift_lockfile")))
+
+  # editing DESCRIPTION moves the drift baseline
+  desc <- file.path(root, "DESCRIPTION")
+  writeLines(sub("Imports: jsonlite \\(>= 1.8.0\\),", "Imports: glue, jsonlite,",
+                 readLines(desc)), desc)
+  res <- avior_check(root)
+  expect_true("drift_added" %in% check_types(res))
+  expect_true("glue" %in% check_pkgs(res))
+})
+
+test_that("adding renv.lock after a DESCRIPTION scan reads as drift", {
+  root <- local_description_project()
+  avior_scan(root)
+  writeLines(paste0(
+    '{"R": {"Version": "4.3.0"}, "Packages": {',
+    '"jsonlite": {"Package": "jsonlite", "Version": "1.8.8", ',
+    '"Source": "Repository", "Repository": "CRAN"}}}'),
+    file.path(root, "renv.lock"))
+  res <- avior_check(root)
+  # the now-authoritative lockfile lacks MASS/Rcpp/yaml -> drift_removed
+  expect_true("drift_removed" %in% check_types(res))
+  expect_true("yaml" %in% check_pkgs(res))
+})
+
+test_that("check on a missing dependency source names the fallback", {
+  root <- local_description_project()
+  avior_scan(root)
+  unlink(file.path(root, "DESCRIPTION"))
+  res <- avior_check(root)
+  expect_true("missing_lockfile" %in% check_types(res))
+  i <- which(check_types(res) == "missing_lockfile")
+  expect_match(res$findings[[i]]$message, "DESCRIPTION", fixed = TRUE)
 })

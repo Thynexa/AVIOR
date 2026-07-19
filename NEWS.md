@@ -1,5 +1,59 @@
 # avior 0.0.0.9000 (development)
 
+## Post-M1 fixes and deferred items (issues #22–#28)
+
+* `avior assess` — engine adapters can now attribute NA causes; the
+  riskmetric adapter tags a CONFIRMED `remote_checks` version mismatch
+  (lockfile pinned below CRAN latest) with cause `version`, which never
+  triggers the score-cache refresh rule. A repeated online assess over an
+  unchanged pinned project is a genuine cache hit: zero engine calls,
+  byte-identical output (#27). Indeterminate failures (ref error,
+  unreadable remote version, scoring failure) stay cause-less, retryable
+  NAs, and `AVIOR_DIAG_REMOTE=1` names the branch per package on stderr,
+  including the raw assessment/scored-cell classes before the numeric
+  conversion. Instrumented smoke runs diagnosed the spike's all-NA
+  shape with class-level evidence: `assess_remote_checks` errors
+  internally (`subscriptOutOfBoundsError` in its CRAN-checks page
+  parse), riskmetric wraps it as `pkg_metric_error`, and riskmetric's
+  `pkg_metric_error` scoring path returns a `pkg_score_error` NA
+  directly (the supplied error handler is never invoked) — an upstream
+  riskmetric 0.2.7 limitation, contained and disclosed (see
+  `docs/riskmetric-spike-results.md`).
+* `avior assess --refresh-na true|false` — the CLI now exposes the R
+  API's `refresh_na` argument: `false` makes every valid cache entry a
+  full hit (no online retry of network-cause NA metrics); duplicates and
+  values other than `true|false` are execution errors (exit 2) (#23).
+* `avior check` — a `scope.include`/`scope.exclude` entry that names no
+  package in the lockfile is now a typed `unknown_scope_reference`
+  finding (gate red, exit 1), judged against the live lockfile with the
+  inventory as fallback. The scan-time warning remains, but a transient
+  console warning is not auditable and never blocked CI (#24).
+* `avior scan` — inventory ownership across rescans is now explicit:
+  `inventory.yml` is machine-owned and rewritten wholesale, the
+  per-package `note:` field is the one supported human annotation and is
+  carried over by package name (matching the frozen example), and any
+  other hand-added field — package-level or top-level — is discarded
+  with a warning naming the field and pointing at the decision records,
+  never silently. An existing inventory that no longer parses fails the
+  scan closed instead of being overwritten (a malformed hand edit may
+  still carry a supported note) (#26).
+* `avior scan` — falls back to `DESCRIPTION` (Depends/Imports/LinkingTo)
+  when the configured lockfile is absent (FR-SCAN-1). The inventory
+  records which source produced it (`lockfile.path`), and each declared
+  dependency without call-site evidence records its declaring field
+  (`DESCRIPTION Imports`, `DESCRIPTION Depends+Imports`, ... —
+  FR-SCAN-3 provenance); versions stay empty rather than fabricated
+  (this source pins nothing), and `avior assess` treats an unpinned
+  inventory version as "the installed version is the subject". `check`
+  drift and scope rules resolve the same source; when neither file
+  exists, scan and check keep failing closed (#22).
+* `avior init --ci github|gitlab` (FR-INIT-3) — generates a deterministic
+  CI workflow (`.github/workflows/avior.yml` or `.gitlab-ci.yml`) that
+  runs the read-only `avior check` gate against the committed validation
+  baseline. Existing workflow files are never overwritten; unsupported,
+  duplicate, or valueless `--ci` options are execution errors (exit 2)
+  (#25).
+
 Milestone M1 of the PRD (v1.6 contracts), merged via PRs #17–#19.
 
 ## Commands
