@@ -1,0 +1,16 @@
+citHeader("To cite avior in publications and validation reports, use:")
+
+bibentry(
+  bibtype  = "Manual",
+  title    = "{avior}: Validation Evidence Compiler for R Package Environments",
+  author   = person("Thynexa", "Team"),
+  year     = "2026",
+  note     = "R package version 0.0.0.9000",
+  url      = "https://github.com/Thynexa/AVIOR",
+  textVersion = paste(
+    "Thynexa Team (2026).",
+    "avior: Validation Evidence Compiler for R Package Environments.",
+    "R package version 0.0.0.9000.",
+    "https://github.com/Thynexa/AVIOR"
+  )
+)

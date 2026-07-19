@@ -17,3 +17,9 @@ TODO that makes \code{avior check} fail until the organisation records its
 reasoning), \code{decisions/}, \code{tests/}, \code{.cache/} and a
 \code{.gitignore} covering the cache and transport zips.
 }
+\examples{
+proj <- file.path(tempdir(), "avior-demo")
+dir.create(proj, showWarnings = FALSE)
+avior_init(proj)
+list.files(file.path(proj, "validation"))
+}

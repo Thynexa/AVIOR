@@ -145,7 +145,7 @@ The PRD is the development baseline. Revisions go through pull requests; any cha
 
 ### License / 许可
 
-Apache-2.0 (see PRD §7.3, decided item Q2).
+Apache-2.0 — full text in [`LICENSE.md`](./LICENSE.md) (see PRD §7.3, decided item Q2).
 
 ---
 
@@ -274,4 +274,4 @@ AVIOR/
 
 ### 许可
 
-Apache-2.0（见 PRD §7.3 已决事项 Q2）。
+Apache-2.0——完整文本见 [`LICENSE.md`](./LICENSE.md)（见 PRD §7.3 已决事项 Q2）。

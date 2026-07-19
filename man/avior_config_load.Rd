@@ -16,3 +16,10 @@ Reads the policy-as-code file that governs scanning, scoring and decision
 depth (PRD FR-X-1). Defaults are applied for omitted fields; the weights,
 risk tiers and na_action fields are validated strictly.
 }
+\examples{
+proj <- file.path(tempdir(), "avior-demo-config")
+dir.create(proj, showWarnings = FALSE)
+avior_init(proj)
+cfg <- avior_config_load(proj)
+cfg$policy$engine
+}

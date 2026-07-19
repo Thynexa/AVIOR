@@ -17,3 +17,10 @@ overrides (recorded in-band), and records the lockfile SHA-256 as the
 drift baseline (PRD FR-SCAN-1..5). Output ordering follows FR-X-7 and
 serialization follows FR-X-8, so repeated runs are byte-identical.
 }
+\examples{
+\dontrun{
+# Run from a project that has a renv.lock and a validation/ tree:
+avior_init(".")
+avior_scan(".")
+}
+}

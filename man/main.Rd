@@ -14,3 +14,9 @@ failure, 2 execution error. \code{inst/exec/avior} passes it to
 Dispatches the avior CLI commands. \code{--format json} emits a
 machine-readable result envelope (FR-X-2).
 }
+\examples{
+\dontrun{
+# Equivalent to the `avior` CLI shim:
+main(c("scan", "--format", "json"))
+}
+}

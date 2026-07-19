@@ -1,0 +1,147 @@
+---
+title: "Getting started with AVIOR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with AVIOR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  # The commands below read/write files, and `assess` needs the riskmetric
+  # engine (and, for some metrics, network access), so the chunks are shown
+  # for reference rather than executed while the vignette is built.
+  eval = FALSE
+)
+```
+
+AVIOR is a **local-first evidence compiler for R package validation** in
+regulated environments (FDA / EMA / NMPA submissions). It takes your dependency
+manifest (`renv.lock`) and a validation policy as input, and produces a
+structured, tamper-evident, signature-ready evidence bundle. Like `pytest` or
+`terraform`, it lives in your repository and your CI rather than on a server.
+
+This vignette walks through the M1 core loop: `init` → `scan` → `assess` →
+`review`, plus the `check` CI gate. Every command has both an R function
+(`avior_*()`) and a CLI form (`avior <command>`); this vignette uses the R
+functions.
+
+```{r setup}
+library(avior)
+```
+
+## 1. Scaffold the policy tree — `avior init`
+
+`avior_init()` creates the `validation/` contract tree in your project root: a
+commented `avior.yml` policy skeleton, plus the `decisions/`, `tests/`,
+`evidence/` and `.cache/` directories and a `.gitignore` for the cache and
+transport zips. It is idempotent — existing files are never overwritten.
+
+```{r init}
+avior_init(".")
+```
+
+The generated `validation/avior.yml` is meant to be edited by hand. Its default
+weights use metadata- and network-tier metrics only, and the `policy.rationale`
+field is a deliberate `TODO`: `avior check` fails until your organisation
+records *why* it chose this policy.
+
+You can load and inspect the merged policy (your settings over the PRD defaults)
+at any time:
+
+```{r config}
+cfg <- avior_config_load(".")
+cfg$policy$engine
+```
+
+## 2. Identify dependencies — `avior scan`
+
+`avior_scan()` parses `renv.lock`, classifies each package (base / recommended /
+contributed / custom), detects which packages your source code calls directly
+(with `file:line` provenance), applies any `scope` include/exclude overrides,
+and records the lockfile's SHA-256 as the drift baseline.
+
+```{r scan}
+avior_scan(".")
+```
+
+It writes `validation/inventory.yml`, a git-tracked generated artifact. Output
+ordering and serialization are deterministic (FR-X-7 / FR-X-8), so re-running
+`scan` over an unchanged project produces a byte-identical file.
+
+## 3. Score risk — `avior assess`
+
+`avior_assess()` scores in-scope packages through the engine adapter
+(riskmetric by default). Engine metrics are "goodness" values in `[0, 1]`, and
+AVIOR aggregates them into a risk score (`risk = 1 - weighted.mean(goodness,
+weights)`), maps risk tiers, and maintains an NA-cause-aware score cache under
+`validation/.cache/`.
+
+```{r assess}
+# Requires the riskmetric engine to be installed:
+#   install.packages("riskmetric")
+avior_assess(".")
+```
+
+By default only offline metadata/network-tier metrics run. Execution-tier
+metrics (for example coverage) are expensive, so they only run under `deep`:
+
+```{r assess-deep}
+avior_assess(".", deep = TRUE)
+```
+
+Results are written to `validation/scores.yml`, including a `run: {deep,
+network}` disclosure so the report can state exactly which metrics were
+resolved.
+
+## 4. Record decisions — `avior review`
+
+For every in-scope package that lacks a decision record, `avior_review()` writes
+a decision stub pre-filled with the current score snapshot, then validates all
+decisions for completeness: signature, rationale, version freshness, use
+statements on medium/high tiers, targeted tests where required, and AI dual
+sign-off.
+
+```{r review}
+avior_review(".")
+```
+
+Stubs live under `validation/decisions/<package>.yml` and are never overwritten
+once created — the git history of that directory *is* your decision trail.
+
+## 5. Gate CI — `avior check`
+
+`avior_check()` is read-only: it never re-scores. It aggregates lockfile drift
+against the inventory baseline, policy validity, decision completeness,
+test-result freshness (including the environment binding), and any
+`excluded_but_present` packages, and returns a pass/fail result.
+
+```{r check}
+result <- avior_check(".")
+result$status
+```
+
+Run it in CI: the CLI maps a `fail` status to a non-zero exit code, so a broken
+evidence chain stops the pipeline.
+
+```{r check-cli}
+# In CI, as a shell command:
+#   avior check
+# or equivalently:
+avior::main(c("check"))
+```
+
+## Where to go next
+
+* The command reference: `?avior_init`, `?avior_scan`, `?avior_assess`,
+  `?avior_review`, `?avior_check`.
+* The file contracts for every generated artifact are specified in the product
+  requirements document, `docs/PRD.md` (§6), which is the project's development
+  baseline.
+
+> AVIOR produces a signature-ready bundle; signing and controlled archival stay
+> in your existing QMS. Compliance responsibility always remains with the
+> sponsor.

@@ -15,3 +15,9 @@ weights vs the static metric registry), decision completeness
 (FR-REVIEW-3), test-result freshness including the environment binding
 (FR-TEST-2), and \code{excluded_but_present} (PRD v1.6 A6).
 }
+\examples{
+\dontrun{
+result <- avior_check(".")
+result$status
+}
+}

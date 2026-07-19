@@ -15,3 +15,9 @@ pre-filled with the current score snapshot. Then validates all decisions
 on medium/high tiers, targeted tests for \code{include_with_tests} and
 high-risk packages, and AI dual sign-off.
 }
+\examples{
+\dontrun{
+avior_assess(".")
+avior_review(".")
+}
+}
