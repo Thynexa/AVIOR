@@ -25,3 +25,12 @@ Aggregates engine metric "goodness" values into a 0-1 risk score
 and maintains the NA-cause-aware score cache under
 \code{validation/.cache/}.
 }
+\examples{
+\dontrun{
+# Requires the riskmetric engine (install.packages("riskmetric")) and,
+# for network-tier metrics, connectivity:
+avior_scan(".")
+avior_assess(".")
+avior_assess(".", only = "jsonlite", deep = TRUE)
+}
+}

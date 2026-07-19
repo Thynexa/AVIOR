@@ -1,5 +1,23 @@
 # avior 0.0.0.9000 (development)
 
+## Packaging, documentation, and community
+
+* Added the full Apache-2.0 license text (`LICENSE.md`), matching the
+  `License: Apache License (>= 2)` field declared in `DESCRIPTION`.
+* Added a "Getting started with AVIOR" vignette that walks through the M1
+  core loop (`init` → `scan` → `assess` → `review`) and the `check` CI gate.
+* Added `\examples{}` to every exported function's help page (`avior_init`
+  and `avior_config_load` are runnable; the file/engine/network-dependent
+  commands are shown under `\dontrun`).
+* Added a package citation entry (`inst/CITATION`) so validation reports can
+  cite the tool and version that produced the evidence.
+* Added community and security files under `.github/`: `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `SECURITY.md`, issue
+  templates, and a pull-request template.
+* `DESCRIPTION` now declares `Language: en-US` and `VignetteBuilder: knitr`
+  (with `knitr`/`rmarkdown` in `Suggests`); the CI check job installs pandoc
+  so the vignette builds during `R CMD check`.
+
 ## Post-M1 fixes and deferred items (issues #22–#28)
 
 * `avior assess` — engine adapters can now attribute NA causes; the
