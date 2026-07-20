@@ -30,7 +30,7 @@ emit_json <- function(x) {
 json_array <- function(x) I(as.character(x))
 
 avior_command_names <- function() {
-  c("init", "scan", "assess", "review", "check", "test", "verify")
+  c("init", "scan", "assess", "review", "check", "test", "verify", "bundle")
 }
 
 avior_command_hint <- function() paste(avior_command_names(), collapse = "|")
@@ -173,6 +173,24 @@ run_command <- function(opts) {
       res <- avior_verify(bundle)
       c(list(command = "verify"), res)
     },
+    bundle = {
+      args <- opts$args
+      force <- "--force" %in% args; args <- args[args != "--force"]
+      zip <- "--zip" %in% args; args <- args[args != "--zip"]
+      reject_extra_args(args, "bundle")
+      res <- avior_bundle(".", force = force, zip = zip)
+      if (identical(res$status, "fail")) {
+        list(command = "bundle", status = "fail",
+             message = res$message, findings = res$findings)
+      } else {
+        list(command = "bundle", status = "ok",
+             bundle_id = res$bundle_id, path = res$path,
+             integrity_check = res$integrity_check, forced = res$forced,
+             files = res$files, counts = res$counts,
+             report_files = json_array(res$report_files),
+             zip = res$zip)
+      }
+    },
     avior_abort(paste0("unknown command: ", opts$command,
                        " (expected: ", avior_command_hint(), ")"))
   )
@@ -256,6 +274,20 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
       cli::cli_alert_danger(msg)
     } else {
       cli::cli_alert_success(msg)
+    }
+  } else if (identical(result$command, "bundle")) {
+    if (identical(result$status, "fail")) {
+      cli::cli_alert_danger(paste0("bundle: ", result$message))
+      print_findings(result$findings)
+    } else {
+      cli::cli_alert_success(paste0(
+        "bundle: ", result$path, " (", result$files, " file(s))",
+        if (!is.null(result$zip)) paste0(" + ", result$zip) else ""))
+      if (isTRUE(result$forced)) {
+        cli::cli_alert_danger(paste0(
+          "compiled with --force: integrity check FAILED at generation ",
+          "time (disclosed in BUNDLE.yml and on the report cover)"))
+      }
     }
   } else if (identical(result$command, "verify")) {
     if (identical(result$status, "pass")) {

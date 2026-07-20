@@ -29,6 +29,28 @@
   deterministic stored-zip writer (`SOURCE_DATE_EPOCH`-stable bytes) used
   for transport artifacts and fixtures.
 
+* New command `avior bundle` / `avior_bundle()` (FR-BUNDLE-1,2,4..8, #32):
+  compiles the validated project state into an immutable
+  `validation/evidence/bundle-<UTC timestamp>/` directory — byte-identical
+  snapshot copies of `avior.yml`/`inventory.yml`/`scores.yml`/
+  `test-results.yml`/`decisions/`, the PRD §6.5 `traceability.csv`
+  (transitive rows carry `version_managed`; out-of-scope direct rows
+  `exempt` or `excluded`), the FR-BUNDLE-5 `environment.json` fingerprint
+  (R/OS/platform, repositories incl. PPM snapshot, lockfile SHA-256,
+  avior + engine versions, `LC_COLLATE`, BLAS/LAPACK with `"unknown"`
+  fallback, container digest or `null`), the full `session-info.txt`,
+  `BUNDLE.yml` metadata, and a path-sorted `MANIFEST.sha256` covering
+  every file except itself. Compilation is gated on the equivalent of
+  `avior check`; `--force` proceeds with a machine-readable disclosure
+  (`integrity_check: failed`, `forced: true`, finding count/types) that
+  the report cover surfaces. Existing bundles are never overwritten
+  (timestamp collisions abort). For identical inputs the data artifacts
+  are byte-identical, and `SOURCE_DATE_EPOCH` fixes embedded timestamps
+  for fully reproducible bundles. `--zip` additionally emits a
+  deterministic, gitignored transport zip that `avior verify` accepts.
+  Report rendering is a clean boundary consumed by the report milestone
+  (#33).
+
 ## Packaging, documentation, and community
 
 * Added the full Apache-2.0 license text (`LICENSE.md`), matching the

@@ -75,14 +75,14 @@ test_that("--help and --version are successful text and JSON commands", {
   expect_true(is.list(help_json$commands))
   expect_setequal(unlist(help_json$commands),
                   c("init", "scan", "assess", "review", "check", "test",
-                    "verify"))
+                    "verify", "bundle"))
   expect_identical(json_of(c("--version", "--format", "json"))$status, "ok")
 })
 
 test_that("command metadata helpers are authoritative for command errors", {
   commands <- c("init", "scan", "assess", "review", "check", "test",
-                "verify")
-  hint <- "init|scan|assess|review|check|test|verify"
+                "verify", "bundle")
+  hint <- "init|scan|assess|review|check|test|verify|bundle"
 
   expect_identical(avior_command_names(), commands)
   expect_identical(avior_command_hint(), hint)

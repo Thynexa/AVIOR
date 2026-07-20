@@ -33,6 +33,12 @@ test_that("J1 pipeline runs green end-to-end on the example project", {
   res <- avior_check(root)
   expect_identical(res$status, "pass")
 
+  # M2 slice: compile the evidence bundle and verify it independently
+  b <- avior_bundle(root, zip = TRUE)
+  expect_identical(b$status, "ok")
+  expect_identical(avior_verify(file.path(root, b$path))$status, "pass")
+  expect_identical(avior_verify(file.path(root, b$zip))$status, "pass")
+
   # tamper: silently changing a decision's version must turn the gate red
   f <- file.path(root, "validation", "decisions", "survival.yml")
   writeLines(sub('version: "3.5-7"', 'version: "3.4-0"', readLines(f)), f)
