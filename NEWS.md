@@ -1,5 +1,19 @@
 # avior 0.0.0.9000 (development)
 
+## M2 follow-up fixes
+
+* `avior init --ci github|gitlab` now scaffolds installation of the development
+  package from `Thynexa/AVIOR` via `pak` instead of attempting to install the
+  unpublished package from CRAN. Generated comments direct controlled users to
+  pin the source or substitute an internal repository.
+* Source-checkout fixture drift tests ignore only macOS `.DS_Store` metadata in
+  addition to their established evidence-directory exclusion; other unexpected
+  hidden files still fail the comparison.
+* The README, getting-started vignette, and `avior_init()` help now document the
+  complete `init` through `verify` workflow, the built-in English HTML/DOCX
+  renderer, the fail-closed Chinese placeholder, CI providers, and external
+  manifest-anchor archival.
+
 ## M2: evidence compilation
 
 * New command `avior test` / `avior_test()` (FR-TEST-1..3, #30): discovers
@@ -115,8 +129,8 @@
 
 * Added the full Apache-2.0 license text (`LICENSE.md`), matching the
   `License: Apache License (>= 2)` field declared in `DESCRIPTION`.
-* Added a "Getting started with AVIOR" vignette that walks through the M1
-  core loop (`init` → `scan` → `assess` → `review`) and the `check` CI gate.
+* Added a "Getting started with AVIOR" vignette, now synchronized with the
+  complete workflow from `init` through independent bundle verification.
 * Added `\examples{}` to every exported function's help page (`avior_init`
   and `avior_config_load` are runnable; the file/engine/network-dependent
   commands are shown under `\dontrun`).

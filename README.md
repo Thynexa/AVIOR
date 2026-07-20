@@ -30,7 +30,7 @@ The name comes from **Avior (ε Carinae)**, a star in the keel of the mythical s
 
 > ### 📌 Current status: M1 core pipeline and M2 evidence compilation implemented
 >
-> The `avior` R package now implements the **M1 milestone** of the PRD: `init` / `scan` / `assess` / `review` plus the `check` CI gate (pulled forward from M2), built test-driven against the frozen v1.6 file contracts — ~490 tests, byte-identical artifacts, CI on Linux/macOS/Windows plus the R 4.1 floor (PRs #17–#19).
+> The `avior` R package now implements the **M1 milestone** of the PRD: `init` / `scan` / `assess` / `review` plus the `check` CI gate (pulled forward from M2), built test-driven against the frozen v1.6 file contracts with a comprehensive regression suite, byte-identical artifacts, and CI definitions for Linux/macOS/Windows plus the R 4.1 floor (PRs #17–#19).
 >
 > The **M2 milestone** now ships too (issues #30–#33): `avior test` (targeted testthat execution with environment-bound results), `avior bundle` (immutable, byte-reproducible evidence bundles), `avior verify` (auditor-standalone integrity verification), and the **English validation report** (HTML + DOCX, rendered by a built-in dependency-free renderer). English is the V1 report language; the Chinese template is an explicit fail-closed placeholder locale until a complete translation lands (PRD v1.8). The engine default is riskmetric; assessments need it installed at runtime (`check` validates policies offline via the static metric registry).
 >
@@ -83,20 +83,34 @@ avior_init()     # scaffold validation/ in your project (rationale left as TODO 
 avior_scan()     # writes validation/inventory.yml from renv.lock + source scan
 avior_assess()   # writes validation/scores.yml (requires the riskmetric package)
 avior_review()   # decision stubs + completeness findings
-avior_check()    # the CI gate; also available as `Rscript exec/avior check --format json`
+# Complete validation/decisions/*.yml and add validation/tests/test-*.R.
+avior_test()     # writes environment-bound validation/test-results.yml
+gate <- avior_check()
+stopifnot(gate$status == "pass")
+
+bundle <- avior_bundle(zip = TRUE) # English report.html + report.docx
+directory_check <- avior_verify(bundle$path)
+zip_check <- avior_verify(bundle$zip)
+stopifnot(directory_check$status == "pass", zip_check$status == "pass")
+directory_check$anchor             # archive this SHA-256 outside the bundle
 ```
+
+Every targeted test file must contain exactly one
+`# avior-package: <package>` header. English is the implemented report locale;
+selecting the Chinese placeholder (`report.language: zh`) fails closed before
+writing a partial or mixed-language bundle.
 
 ### Repository layout
 
 ```text
 AVIOR/
 ├── DESCRIPTION · NAMESPACE          # R package metadata (R ≥ 4.1; Imports: cli, digest, jsonlite, yaml)
-├── R/                               # Implementation: canonical serialization (FR-X-8), config,
-│                                    #   lockfile+scan, engine adapter, assess (+cache), review, check, CLI
-├── tests/testthat/                  # ~490 tests; vendored fixture copy of the example project
+├── R/                               # Implementation: config/scan/assess/review/test/check,
+│                                    #   bundle/verify, report renderers, canonical serialization, CLI
+├── tests/testthat/                  # Regression suite + vendored fixture copy of the example project
 ├── man/                             # Function reference
 ├── exec/avior                       # CLI shim (Rscript)
-├── inst/templates/                  # avior.yml init template
+├── inst/templates/ · inst/report/   # Config/CI templates + versioned report locales
 ├── .github/workflows/ci.yml         # Linux / macOS / Windows + R 4.1 matrix
 ├── docs/                            # Project documentation
 │   ├── README.md                    # Documentation index
@@ -106,7 +120,7 @@ AVIOR/
 │   ├── product-design-review.md     # Design & roadmap review against the PRD baseline
 │   ├── r-regulatory-submission-research.md  # Methodology research
 │   ├── r-package-validation-strategy.md     # Validation strategy analysis
-│   └── superpowers/plans/           # Implementation plans (M0 contract fixes + M1 — both completed)
+│   └── superpowers/                 # Reviewed design specifications and implementation plans
 ├── examples/
 │   └── minimal-project/            # M0 hand-assembled example bundle (5 packages, all key scenarios)
 ├── .claude/skills/  ·  .agents/skills/   # Vendored "superpowers" skills for AI-assisted development
@@ -135,7 +149,7 @@ AVIOR/
 | Implementation language | An R package at the core (users are R teams; riskmetric/testthat/covr are all R) |
 | Minimum R version | R ≥ 4.1 |
 | Config / artifact format | YAML + CSV (diff-friendly; QA can read without tooling) |
-| Report engine | Quarto → html / docx |
+| Report engine | Built-in dependency-free renderer → self-contained HTML + DOCX |
 | Distribution | CRAN first, GitHub Releases |
 | Open-source license | Apache-2.0 |
 
@@ -159,7 +173,7 @@ AVIOR 是一个面向受监管环境（FDA / EMA / NMPA 申报）的 **local-fir
 
 > ### 📌 当前状态：M1 核心管线与 M2 证据编译均已实现
 >
-> `avior` R 包已实现 PRD 的 **M1 里程碑**：`init` / `scan` / `assess` / `review` 以及提前落地的 `check` CI 门禁——全程 TDD、对齐冻结的 v1.6 文件契约，约 490 个测试，产物字节级确定性，CI 覆盖 Linux / macOS / Windows 及 R 4.1 下限（PR #17–#19）。
+> `avior` R 包已实现 PRD 的 **M1 里程碑**：`init` / `scan` / `assess` / `review` 以及提前落地的 `check` CI 门禁——全程 TDD、对齐冻结的 v1.6 文件契约，具备完整回归测试、字节级确定性产物，以及覆盖 Linux / macOS / Windows 与 R 4.1 下限的 CI 定义（PR #17–#19）。
 >
 > **M2 里程碑现已落地**（issues #30–#33）：`avior test`（定向 testthat 执行 + 环境绑定的测试证据）、`avior bundle`（不可变、字节可复现的证据包）、`avior verify`（审计员独立完整性校验）、以及**英文验证报告**（HTML + DOCX，内建零依赖渲染器）。V1 报告语言为英文；中文模板为显式 fail-closed 占位 locale，完整翻译落地前选择 `zh` 会明确报错（PRD v1.8）。默认引擎为 riskmetric，评分需运行时安装该包（`check` 经静态指标注册表可离线校验策略）。
 >
@@ -212,20 +226,33 @@ avior_init()     # 在项目中生成 validation/ 骨架（rationale 刻意留 T
 avior_scan()     # 从 renv.lock + 源码扫描写出 validation/inventory.yml
 avior_assess()   # 写出 validation/scores.yml（需要安装 riskmetric）
 avior_review()   # 决策桩 + 完整性 findings
-avior_check()    # CI 门禁；也可 `Rscript exec/avior check --format json`
+# 完成 validation/decisions/*.yml，并添加 validation/tests/test-*.R。
+avior_test()     # 写出与运行环境绑定的 validation/test-results.yml
+gate <- avior_check()
+stopifnot(gate$status == "pass")
+
+bundle <- avior_bundle(zip = TRUE) # 生成英文 report.html + report.docx
+directory_check <- avior_verify(bundle$path)
+zip_check <- avior_verify(bundle$zip)
+stopifnot(directory_check$status == "pass", zip_check$status == "pass")
+directory_check$anchor             # 将此 SHA-256 归档到证据包外部
 ```
+
+每个定向测试文件必须且只能包含一个 `# avior-package: <包名>` 头。英文是当前
+已实现的报告 locale；选择中文占位 locale（`report.language: zh`）会在写入任何
+部分或混合语言证据包之前 fail closed。
 
 ### 仓库结构
 
 ```text
 AVIOR/
 ├── DESCRIPTION · NAMESPACE          # R 包元数据（R ≥ 4.1；Imports：cli、digest、jsonlite、yaml）
-├── R/                               # 实现：规范化序列化（FR-X-8）、配置、锁文件+扫描、
-│                                    #   引擎适配层、assess（含缓存）、review、check、CLI
-├── tests/testthat/                  # 约 490 个测试；内置样例项目的 fixture 副本
+├── R/                               # 实现：配置、scan/assess/review/test/check、
+│                                    #   bundle/verify、报告渲染、规范化序列化与 CLI
+├── tests/testthat/                  # 回归测试套件；内置样例项目的 fixture 副本
 ├── man/                             # 函数文档
 ├── exec/avior                       # CLI 入口（Rscript）
-├── inst/templates/                  # avior.yml init 模板
+├── inst/templates/ · inst/report/   # 配置/CI 模板与版本化报告 locale
 ├── .github/workflows/ci.yml         # Linux / macOS / Windows + R 4.1 矩阵
 ├── docs/                            # 项目文档
 │   ├── README.md                    # 文档索引
@@ -235,7 +262,7 @@ AVIOR/
 │   ├── product-design-review.md     # 对照 PRD 基线的设计方向与路线评审
 │   ├── r-regulatory-submission-research.md  # 方法论调研
 │   ├── r-package-validation-strategy.md     # R 包验证策略分析
-│   └── superpowers/plans/           # 实施计划（M0 契约修复 + M1，均已完成）
+│   └── superpowers/                 # 已评审的设计规格与实施计划
 ├── examples/
 │   └── minimal-project/            # M0 手工样例证据包（5 包，覆盖所有关键情形）
 ├── .claude/skills/  ·  .agents/skills/   # 供 AI 辅助开发的 superpowers 技能集
@@ -264,7 +291,7 @@ AVIOR/
 | 实现语言 | R 包为核心（用户是 R 团队，riskmetric/testthat/covr 都是 R） |
 | 最低 R 版本 | R ≥ 4.1 |
 | 配置 / 产物格式 | YAML + CSV（diff 友好，QA 无需工具即可阅读） |
-| 报告引擎 | Quarto → html / docx |
+| 报告引擎 | 内建零依赖渲染器 → 自包含 HTML + DOCX |
 | 分发 | CRAN 优先 + GitHub Releases |
 | 开源许可 | Apache-2.0 |
 

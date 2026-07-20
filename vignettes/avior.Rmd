@@ -25,16 +25,16 @@ structured, version-controlled validation evidence — an inventory, risk scores
 and decision records that live in your repository. Like `pytest` or `terraform`,
 it lives in your repository and your CI rather than on a server.
 
-This vignette walks through the **M1 core loop**: `init` → `scan` → `assess` →
-`review`, plus the `check` CI gate. Every command has both an R function
-(`avior_*()`) and a CLI form (`avior <command>`); this vignette uses the R
-functions.
+This vignette walks through the complete V1 workflow: `init` → `scan` →
+`assess` → `review` → `test` → `check` → `bundle` → `verify`. Every command
+has both an R function (`avior_*()`) and a CLI form (`avior <command>`); this
+vignette uses the R functions.
 
-AVIOR's end goal is to compile these artifacts into a single, tamper-evident,
-signature-ready evidence **bundle** with a SHA-256 manifest. That step
-(`bundle` / `verify`, FR-BUNDLE in the PRD) is a **later milestone (M2)** and is
-not yet implemented — following this vignette produces the underlying
-version-controlled artifacts, not a bundle.
+The workflow compiles the version-controlled inputs into an immutable evidence
+bundle containing English HTML and DOCX validation reports, a traceability
+matrix, environment fingerprints, snapshots, and a SHA-256 manifest. The final
+verification step runs without project context, so an auditor can check either
+the bundle directory or its transport zip independently.
 
 ```{r setup}
 library(avior)
@@ -119,7 +119,33 @@ avior_review(".")
 Stubs live under `validation/decisions/<package>.yml` and are never overwritten
 once created — the git history of that directory *is* your decision trail.
 
-## 5. Gate CI — `avior check`
+## 5. Run targeted tests — `avior test`
+
+Decision records with `decision: include_with_tests` name the test files that
+must provide fresh passing evidence. Put those files under `validation/tests/`.
+Each file must contain exactly one package header:
+
+```{r targeted-test-file}
+# avior-package: targetpkg
+
+testthat::test_that("the intended-use result is stable", {
+  result <- targetpkg::some_function()
+  testthat::expect_equal(result, "expected")
+})
+```
+
+Run all declared targeted tests and write environment-bound results:
+
+```{r targeted-test-run}
+test_result <- avior_test(".")
+test_result$status
+```
+
+`validation/test-results.yml` binds every result to the tested package version,
+the dependency-source SHA-256, and the R version/platform. A failing file, an
+all-skipped file, or a file with no passing test is not valid evidence.
+
+## 6. Gate CI — `avior check`
 
 `avior_check()` is read-only: it never re-scores. It aggregates lockfile drift
 against the inventory baseline, policy validity, decision completeness,
@@ -141,15 +167,56 @@ evidence chain stops the pipeline.
 avior::main(c("check"))
 ```
 
+`avior_init(".", ci = "github")` or `ci = "gitlab"` can scaffold a workflow
+that runs this read-only gate. Existing workflow files are never overwritten.
+
+## 7. Compile the evidence bundle — `avior bundle`
+
+Compilation runs the same gate again. By default, a failed gate blocks output;
+`force = TRUE` is reserved for exceptional cases and places an explicit failed
+integrity disclosure on the report cover.
+
+```{r bundle}
+bundle <- avior_bundle(".", zip = TRUE)
+bundle$path
+bundle$report_files
+```
+
+Every new `validation/evidence/bundle-<UTC>/` directory is immutable and
+contains `report.html`, `report.docx`, `traceability.csv`, `environment.json`,
+`session-info.txt`, `BUNDLE.yml`, the input `snapshot/`, and
+`MANIFEST.sha256`. The built-in report renderer has no Quarto or pandoc runtime
+dependency. English (`report.language: en`) is complete; the Chinese locale is
+an explicit placeholder that fails closed before any partial bundle is written.
+
+## 8. Verify and archive — `avior verify`
+
+Verify the directory and the optional transport zip independently:
+
+```{r verify}
+directory_verification <- avior_verify(bundle$path)
+zip_verification <- avior_verify(bundle$zip)
+stopifnot(
+  directory_verification$status == "pass",
+  zip_verification$status == "pass"
+)
+directory_verification$anchor
+```
+
+The returned anchor is the SHA-256 of `MANIFEST.sha256`. Record it outside the
+bundle in a git commit, QMS archive record, or independent signature. The
+manifest proves internal consistency; it is not by itself an identity or trust
+root.
+
 ## Where to go next
 
 * The command reference: `?avior_init`, `?avior_scan`, `?avior_assess`,
-  `?avior_review`, `?avior_check`.
+  `?avior_review`, `?avior_test`, `?avior_check`, `?avior_bundle`, and
+  `?avior_verify`.
 * The file contracts for every generated artifact are specified in the product
   requirements document, `docs/PRD.md` (§6), which is the project's development
   baseline.
 
-> The M1 commands produce version-controlled validation artifacts. Compiling
-> them into a signature-ready **bundle** and verifying it (`bundle` / `verify`)
-> is a later milestone (M2). Signing and controlled archival always stay in your
-> existing QMS, and compliance responsibility always remains with the sponsor.
+> AVIOR produces signature-ready evidence but does not perform electronic
+> signatures or controlled archival. Those activities remain in your existing
+> QMS, and compliance responsibility always remains with the sponsor.
