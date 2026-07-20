@@ -103,6 +103,9 @@ test_that("failing targeted tests turn the gate red (FR-TEST AC)", {
   root <- local_example_project()
   f <- file.path(root, "validation", "test-results.yml")
   txt <- readLines(f)
+  # keep the counts reconciled (tests == passed + failed + skipped): an
+  # inconsistent row is invalid_test_results, not failing_tests
+  txt <- sub("    passed: 2", "    passed: 1", txt)
   txt <- sub("    failed: 0", "    failed: 1", txt)
   writeLines(txt, f)
   res <- avior_check(root)
@@ -207,6 +210,145 @@ test_that("CLI maps a non-finite failed count to validation failure", {
   expect_identical(parsed$status, "fail")
   expect_true("invalid_test_results" %in%
                 vapply(parsed$findings, `[[`, character(1), "type"))
+})
+
+test_that("inconsistent test counts are invalid results (cannot fabricate passes)", {
+  # {tests: 0, passed: 1} must not be able to forge passing evidence, and
+  # rows with absent counts prove nothing either — every count is required
+  # and they must reconcile (tests == passed + failed + skipped)
+  bad_rows <- list(
+    c("    tests: 0", "    passed: 1", "    failed: 0", "    skipped: 0"),
+    c("    tests: 2", "    passed: 2", "    failed: 1", "    skipped: 0"),
+    c("    passed: 1", "    failed: 0")                    # counts missing
+  )
+  for (row in bad_rows) {
+    root <- local_example_project()
+    f <- file.path(root, "validation", "test-results.yml")
+    env <- readLines(f)[grep("^environment:|^  lockfile_sha256|^  r_version|^  platform", readLines(f))]
+    writeLines(c(
+      "avior: 1",
+      env,
+      "results:",
+      "  - file: tests/test-lme4-fit.R",
+      "    package: lme4",
+      '    package_version: "1.1-35.1"',
+      row
+    ), f)
+    res <- avior_check(root)
+    expect_identical(res$status, "fail")
+    expect_true("invalid_test_results" %in% check_types(res),
+                label = paste(row, collapse = " "))
+  }
+})
+
+test_that("unknown inventory/scores schema versions fail closed (FR-X-6)", {
+  # inventory: check reports a structured finding, never interprets or crashes
+  root <- local_example_project()
+  f <- file.path(root, "validation", "inventory.yml")
+  writeLines(sub("^avior: 1$", "avior: 2", readLines(f)), f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("invalid_inventory" %in% check_types(res))
+  # ...and command-side semantic readers refuse it as an execution error
+  cfg <- avior_config_load(root)
+  err <- tryCatch(avior:::read_inventory(cfg), avior_error = function(e) e)
+  expect_s3_class(err, "avior_error")
+  expect_match(conditionMessage(err), "schema version")
+
+  # scores: same rule through the review_findings path
+  root2 <- local_example_project()
+  f2 <- file.path(root2, "validation", "scores.yml")
+  writeLines(sub("^avior: 1$", "avior: 2", readLines(f2)), f2)
+  res2 <- avior_check(root2)
+  expect_identical(res2$status, "fail")
+  expect_true("invalid_scores" %in% check_types(res2))
+
+  # malformed YAML in either artifact is the same fail-closed finding,
+  # not a parser crash: a raw yaml error is a plain simpleError that
+  # must never escape the gate
+  root3 <- local_example_project()
+  writeLines(c("avior: 1", "packages: ["),
+             file.path(root3, "validation", "scores.yml"))
+  res3 <- avior_check(root3)
+  expect_identical(res3$status, "fail")
+  expect_true("invalid_scores" %in% check_types(res3))
+
+  root4 <- local_example_project()
+  writeLines(c("avior: 1", "packages: ["),
+             file.path(root4, "validation", "inventory.yml"))
+  res4 <- avior_check(root4)
+  expect_identical(res4$status, "fail")
+  expect_true("invalid_inventory" %in% check_types(res4))
+})
+
+test_that("unknown test-results schema versions are invalid evidence (FR-X-6)", {
+  # a future/missing schema version must not satisfy the gate, even with a
+  # valid environment binding and a passing row matching the declared path
+  for (version_line in list("avior: 2", "avior: 1.5", character(0))) {
+    root <- local_example_project()
+    f <- file.path(root, "validation", "test-results.yml")
+    txt <- readLines(f)
+    txt <- txt[!grepl("^avior:", txt)]
+    writeLines(c(version_line, txt), f)
+    res <- avior_check(root)
+    expect_identical(res$status, "fail")
+    expect_true("invalid_test_results" %in% check_types(res),
+                label = paste("version:", paste(version_line, collapse = "")))
+  }
+})
+
+test_that("passing evidence is bound to the decision's declared test files", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "test-results.yml")
+  # same package, same version, valid environment — but the recorded
+  # passing file is NOT the one the decision declares: adding a required
+  # test to the decision without re-running must not read as green
+  writeLines(sub("file: tests/test-lme4-fit.R",
+                 "file: tests/test-lme4-other.R", readLines(f)), f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("missing_test_results" %in% check_types(res))
+  msgs <- vapply(res$findings, function(x) x$message, character(1))
+  expect_true(any(grepl("tests/test-lme4-fit.R", msgs, fixed = TRUE)))
+})
+
+test_that("duplicated result file paths are invalid evidence", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "test-results.yml")
+  txt <- readLines(f)
+  # duplicate the lme4 row verbatim: the file->evidence binding becomes
+  # ambiguous (a forged passing duplicate could shadow a failing row)
+  start <- grep("file: tests/test-lme4-fit.R", txt)
+  block <- txt[start:(start + 7)]
+  block[1] <- sub("^  - ", "  - ", block[1])
+  writeLines(c(txt, block), f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("invalid_test_results" %in% check_types(res))
+})
+
+test_that("a passing file cannot mask a sibling all-skipped file (per-row rule)", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "test-results.yml")
+  # append a second lme4 row that is all-skipped: the package now has one
+  # green file and one non-evidence file — the run as a whole is not green
+  writeLines(c(readLines(f),
+    "  - file: tests/test-lme4-zzz.R",
+    "    package: lme4",
+    '    package_version: "1.1-35.1"',
+    "    tests: 1",
+    "    passed: 0",
+    "    failed: 0",
+    "    skipped: 1",
+    "    duration_s: 0.1"
+  ), f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("no_passing_tests" %in% check_types(res))
+  expect_true("lme4" %in% check_pkgs(res))
+  # the finding names the offending file, not just the package
+  msgs <- vapply(res$findings, function(x) x$message, character(1))
+  expect_true(any(grepl("test-lme4-zzz.R", msgs, fixed = TRUE)))
 })
 
 test_that("missing test results for include_with_tests packages are red", {

@@ -86,19 +86,42 @@ check_policy <- function(cfg) {
   findings
 }
 
+# The one row-level classification every consumer shares (writer status,
+# check gate, report section 6, traceability test_status): a recorded
+# test-file row is passing evidence iff nothing failed AND something
+# actually passed — an all-skipped or zero-test row proves nothing.
+test_row_passing <- function(r) {
+  (r$failed %||% 0) == 0 && (r$passed %||% 0) > 0
+}
+
 valid_test_results <- function(x) {
   scalar_text <- function(v) {
     is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
   }
-  is.list(x) && (is.null(x$results) ||
+  count_ok <- function(v) {
+    is.numeric(v) && length(v) == 1L && !is.na(v) && is.finite(v) &&
+      v >= 0 && v == floor(v)
+  }
+  # FR-X-6: the top-level schema version must be EXACTLY v1 before any
+  # row is consumed — evidence in an unknown (missing or future) schema
+  # cannot be interpreted by this reader, let alone satisfy a gate
+  if (!is.list(x) || !avior_schema_v1(x$avior)) return(FALSE)
+  rows_ok <- is.list(x) && (is.null(x$results) ||
     (is.list(x$results) && all(vapply(x$results, function(row) {
+      # every count is REQUIRED and they must reconcile: a hand-edited row
+      # such as {tests: 0, passed: 1} must not be able to fabricate
+      # passing evidence (FR-TEST-2 — evidence is provable or invalid)
       is.list(row) && scalar_text(row$package) &&
         scalar_text(row$package_version) && scalar_text(row$file) &&
-        (is.null(row$failed) ||
-          (is.numeric(row$failed) && length(row$failed) == 1L &&
-            !is.na(row$failed) && is.finite(row$failed) &&
-            row$failed >= 0 && row$failed == floor(row$failed)))
+        count_ok(row$tests) && count_ok(row$passed) &&
+        count_ok(row$failed) && count_ok(row$skipped) &&
+        row$tests == row$passed + row$failed + row$skipped
     }, logical(1)))))
+  if (!rows_ok) return(FALSE)
+  # one row per test file: duplicated file paths make the file->evidence
+  # binding ambiguous (a forged passing duplicate could shadow a failing
+  # row), and the canonical writer can never emit them
+  !anyDuplicated(vapply(x$results, function(row) row$file, character(1)))
 }
 
 invalid_test_results_finding <- function() {
@@ -125,20 +148,32 @@ check_test_results <- function(cfg, inventory) {
     return(list(invalid_test_results_finding()))
   }
 
-  tested <- character(0)
+  present <- character(0)   # packages with any recorded row
   for (r in results$results) {
     pkg <- r$package
-    tested <- c(tested, pkg)
-    if (!identical(r$package_version, unname(inv_versions[pkg]))) {
+    present <- c(present, pkg)
+    # package_version semantics, not identical(): R treats `.` and `-` as
+    # interchangeable separators, so an installed "3.8-6" recorded verbatim
+    # must match an inventory "3.8.6" (and vice versa); a malformed version
+    # fails closed as stale
+    if (!same_package_version(r$package_version, unname(inv_versions[pkg]))) {
       add(finding(pkg, "stale_tests",
                   paste0("test results bound to version ", r$package_version,
                          " but the inventory has ", inv_versions[pkg]),
                   fix = "re-run `avior test` against the current environment"))
     }
+    # PER ROW, mirroring the writer's own failure condition: a package with
+    # one passing file must not mask a sibling all-skipped/zero-test file —
+    # the recorded run as a whole was not green (FR-TEST AC)
     if ((r$failed %||% 0) > 0) {
       add(finding(pkg, "failing_tests",
                   paste0(r$failed, " targeted test(s) failing in ", r$file),
                   fix = "fix the failures, then re-run `avior test`"))
+    } else if (!test_row_passing(r)) {
+      add(finding(pkg, "no_passing_tests",
+                  paste0(r$file, " produced no passing evidence (all ",
+                         "skipped or zero tests)"),
+                  fix = "make the targeted tests runnable, then re-run `avior test`"))
     }
   }
   # FR-TEST-2/A4: results must PROVE their runtime environment. "Cannot prove
@@ -164,15 +199,33 @@ check_test_results <- function(cfg, inventory) {
     }
   }
 
-  # every include_with_tests decision needs current results
+  # Evidence is bound to the DECLARED test files, not merely the package:
+  # every path a decision lists under `tests:` must have a fresh passing
+  # result row for that same package. Otherwise adding a required test to
+  # the decision without re-running `avior test` (or pointing results at
+  # an unrelated file) would read as green while the mandated test never
+  # ran. The per-row rule above already covers whatever else IS recorded.
+  passing_keys <- vapply(
+    Filter(test_row_passing, results$results %||% list()),
+    function(r) paste0(r$package, "\r", r$file), character(1))
   dec_dir <- file.path(cfg$paths$validation, "decisions")
   for (f in sort_c(list.files(dec_dir, pattern = "\\.yml$", full.names = TRUE))) {
     d <- tryCatch(read_yaml_file(f), error = function(e) NULL)
     if (is.null(d) || !is.list(d) || !identical(d$decision, "include_with_tests")) next
-    if (!(d$package %in% tested)) {
+    if (!(d$package %in% present)) {
       add(finding(d$package, "missing_test_results",
                   "include_with_tests decision but no recorded test results",
                   fix = "run `avior test` to execute and record the targeted tests"))
+      next
+    }
+    declared <- sub("^validation/", "", as.character(unlist(d$tests)))
+    for (t in declared) {
+      if (!(paste0(d$package, "\r", t) %in% passing_keys)) {
+        add(finding(d$package, "missing_test_results",
+                    paste0("decision declares ", t, " but there is no fresh ",
+                           "passing result for it"),
+                    fix = "re-run `avior test` so every declared targeted test records passing evidence"))
+      }
     }
   }
   findings
@@ -237,7 +290,19 @@ avior_check <- function(root = ".") {
       fix = "run `avior scan` first")))
     return(list(status = "fail", findings = findings))
   }
-  inventory <- read_yaml_file(inv_path)
+  inventory <- tryCatch(read_yaml_file(inv_path), error = function(e) NULL)
+
+  # FR-X-6 fail-closed: an inventory that cannot be parsed or carries an
+  # unknown (missing or future) schema cannot be interpreted, so none of
+  # the downstream rules can run against it — one structured finding,
+  # never a crash and never a pass
+  if (!is.list(inventory) || !avior_schema_v1(inventory$avior)) {
+    findings <- c(findings, list(finding(
+      "-", "invalid_inventory",
+      "inventory.yml cannot be parsed, or has a missing/unsupported schema version (expected avior: 1) -- its contents cannot be interpreted (FR-X-6)",
+      fix = "re-run `avior scan` to regenerate the inventory")))
+    return(list(status = "fail", findings = findings))
+  }
 
   # An incomplete scan (unparseable source files) is a scope gap: a package
   # referenced only there was missed. Gate on it (FR-SCAN-3 / PR #18 review).

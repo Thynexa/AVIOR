@@ -1,5 +1,116 @@
 # avior 0.0.0.9000 (development)
 
+## M2: evidence compilation
+
+* New command `avior test` / `avior_test()` (FR-TEST-1..3, #30): discovers
+  testthat files under `validation/tests/`, maps every file to its package
+  through the required `# avior-package: <pkg>` header (missing, ambiguous,
+  malformed, or out-of-scope mappings are execution errors naming every
+  offending file), runs the targeted tests, and writes canonical
+  `validation/test-results.yml` with per-test-file results bound to the
+  runtime environment (package version, lockfile SHA-256, R
+  version/platform) for consumption by `avior check` and `avior bundle`.
+  A failing targeted test exits 1; skipped or errored expectations are
+  never reported as passes, and a file whose run produced no passing
+  test at all (all skipped, or zero `test_that()` blocks) is a business
+  failure. The classification is one shared row-level rule (`failed == 0`
+  and `passed > 0`) applied identically by the writer, `avior check`
+  (per result row — a green file cannot mask an all-skipped sibling;
+  `no_passing_tests` finding names the file), the report's test-evidence
+  section, and the traceability `test_status` column. The
+  `test-results.yml` schema now requires an exact top-level `avior: 1`
+  version (FR-X-6 — evidence in an unknown schema is invalid, never
+  interpreted), all four counts as reconciling non-negative integers
+  (`tests == passed + failed + skipped`), and unique result file paths,
+  so hand-edited rows cannot fabricate passing evidence. `avior check` binds evidence to the decision's DECLARED test
+  files: every path an `include_with_tests` decision lists must have a
+  fresh passing result for that package — adding a required test without
+  re-running `avior test` turns the gate red.
+  The recorded package version is the installed `DESCRIPTION` `Version`
+  literal (lockfile forms like `3.8-6` are preserved), and the check
+  reader compares versions with R's `package_version` semantics.
+  `--coverage` collects covr coverage as a disclosed, non-gating
+  reference metric (`coverage_ref`) when covr is installed (covr is now
+  in Suggests).
+
+* New command `avior verify <bundle>` / `avior_verify()` (FR-VERIFY-1..3,
+  #31): recomputes the SHA-256 of every file listed in `MANIFEST.sha256`
+  for a bundle directory or transport zip and reports missing, modified,
+  malformed, duplicate, and unexpected files as typed findings in a
+  deterministic order. Runs without any project context — an auditor needs
+  only the bundle and this package. On success it emits the SHA-256 of
+  `MANIFEST.sha256` itself as the external anchor value (record it in the
+  git commit, QMS archive record, or an independent signature; the
+  manifest is not a trust root — PRD §5.8). Zip archives are extracted
+  safely: absolute paths, drive letters, backslashes, and `..` traversal
+  are rejected before extraction — for directory entries too — as are
+  entries duplicated byte-for-byte or after ASCII case-folding, and
+  non-ASCII entry names outright (NFC/NFD variants of the same text alias
+  one path on default macOS filesystems; transport zips only ever carry
+  ASCII bundle paths — verify non-ASCII trees as directories).
+  Ships with an internal
+  deterministic stored-zip writer (`SOURCE_DATE_EPOCH`-stable bytes) used
+  for transport artifacts and fixtures.
+
+* New command `avior bundle` / `avior_bundle()` (FR-BUNDLE-1,2,4..8, #32):
+  compiles the validated project state into an immutable
+  `validation/evidence/bundle-<UTC timestamp>/` directory — byte-identical
+  snapshot copies of `avior.yml`/`inventory.yml`/`scores.yml`/
+  `test-results.yml`/`decisions/`, the PRD §6.5 `traceability.csv`
+  (transitive rows carry `version_managed`; out-of-scope direct rows
+  `exempt` or `excluded`), the FR-BUNDLE-5 `environment.json` fingerprint
+  (R/OS/platform, repositories incl. PPM snapshot, lockfile SHA-256,
+  avior + engine versions, `LC_COLLATE`, BLAS/LAPACK with `"unknown"`
+  fallback, container digest or `null`), the full `session-info.txt`,
+  `BUNDLE.yml` metadata, and a path-sorted `MANIFEST.sha256` covering
+  every file except itself. Compilation is gated on the equivalent of
+  `avior check`; `--force` proceeds with a machine-readable disclosure
+  (`integrity_check: failed`, `forced: true`, finding count/types) that
+  the report cover surfaces; a forced compile tolerates inputs `check`
+  reports as findings (unparseable or schema-invalid
+  `test-results.yml`/decision records are snapshot verbatim and treated
+  as unavailable — decisions are normalized against the reader's
+  `invalid_decision` rules with an exact `avior: 1` schema-version match
+  shared by every artifact reader (FR-X-6; `1.5`/`true` no longer read
+  as v1), and every field the report/trace/counts consume is guaranteed
+  scalar while reader-accepted scalar values such as a numeric
+  `reviewed_by` are preserved as text rather than silently dropped). The
+  same exact-version rule guards the inventory and scores read
+  boundaries: `avior check` fails closed with `invalid_inventory`/
+  `invalid_scores` findings for unparseable YAML and unknown schema
+  versions alike (a raw parser error can never escape the gate),
+  command-side readers refuse with an execution error, and a forced
+  bundle keeps an unknown-schema or malformed `scores.yml` snapshot
+  verbatim without interpreting it (an uninterpretable inventory cannot
+  be compiled at all), and
+  `counts.decisions_signed` counts decisions with a non-empty
+  `reviewed_by` signature, not decision files on disk. Existing bundles
+  are never overwritten
+  (timestamp collisions abort). For identical inputs the data artifacts
+  are byte-identical, and `SOURCE_DATE_EPOCH` fixes embedded timestamps
+  for fully reproducible bundles. `--zip` additionally emits a
+  deterministic, gitignored transport zip that `avior verify` accepts.
+  Report rendering is a clean boundary consumed by the report milestone
+  (#33).
+
+* English validation report (issue #33, supersedes the PRD's "Chinese V1"
+  language decision — PRD revised to v1.8): `avior bundle` now renders
+  `report.html` and `report.docx` through a built-in, dependency-free
+  renderer (hand-written self-contained HTML; minimal OOXML DOCX packed
+  with the deterministic zip writer — no Quarto/pandoc system
+  prerequisite). The report follows the GAMP 5 narrative (methodology and
+  four criteria; the fixed scope-and-boundary statement with layered
+  base/recommended exemption sourcing; scope and classification; scoring
+  and thresholds; decision summary; targeted-test evidence; environment
+  and reproducibility; per-package appendix plus an integrity appendix).
+  A `--force`d bundle displays the integrity failure prominently on the
+  cover of both formats. All narrative strings are externalized in
+  versioned locale tables (`inst/report/locales/`): `en` is complete;
+  `zh` is a schema-identical placeholder (`status: placeholder`) that
+  fails closed with an actionable error if selected, so a partial or
+  mixed-language report can never be emitted. `avior init` and the config
+  defaults now select English (`report.language: en`).
+
 ## Packaging, documentation, and community
 
 * Added the full Apache-2.0 license text (`LICENSE.md`), matching the

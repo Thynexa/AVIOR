@@ -23,6 +23,7 @@ Imports:
     utils,
     yaml
 Suggests:
+    covr,
     knitr,
     riskmetric,
     rmarkdown,

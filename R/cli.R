@@ -29,7 +29,9 @@ emit_json <- function(x) {
 # (command/status/...) stay unboxed.
 json_array <- function(x) I(as.character(x))
 
-avior_command_names <- function() c("init", "scan", "assess", "review", "check")
+avior_command_names <- function() {
+  c("init", "scan", "assess", "review", "check", "test", "verify", "bundle")
+}
 
 avior_command_hint <- function() paste(avior_command_names(), collapse = "|")
 
@@ -146,6 +148,49 @@ run_command <- function(opts) {
       res <- avior_check(".")
       c(list(command = "check"), res)
     },
+    test = {
+      args <- opts$args
+      coverage <- "--coverage" %in% args; args <- args[args != "--coverage"]
+      reject_extra_args(args, "test")
+      res <- avior_test(".", coverage = coverage)
+      list(command = "test", status = res$status,
+           files = length(res$results),
+           tests = sum(vapply(res$results, function(r) r$tests, integer(1))),
+           passed = sum(vapply(res$results, function(r) r$passed, integer(1))),
+           failed = sum(vapply(res$results, function(r) r$failed, integer(1))),
+           skipped = sum(vapply(res$results, function(r) r$skipped, integer(1))),
+           packages = json_array(sort_c(unique(vapply(
+             res$results, function(r) r$package, character(1))))),
+           path = res$path)
+    },
+    verify = {
+      args <- opts$args
+      if (length(args) == 0) {
+        avior_abort("verify: requires a bundle path (directory or zip)")
+      }
+      bundle <- args[1]
+      reject_extra_args(args[-1], "verify")
+      res <- avior_verify(bundle)
+      c(list(command = "verify"), res)
+    },
+    bundle = {
+      args <- opts$args
+      force <- "--force" %in% args; args <- args[args != "--force"]
+      zip <- "--zip" %in% args; args <- args[args != "--zip"]
+      reject_extra_args(args, "bundle")
+      res <- avior_bundle(".", force = force, zip = zip)
+      if (identical(res$status, "fail")) {
+        list(command = "bundle", status = "fail",
+             message = res$message, findings = res$findings)
+      } else {
+        list(command = "bundle", status = "ok",
+             bundle_id = res$bundle_id, path = res$path,
+             integrity_check = res$integrity_check, forced = res$forced,
+             files = res$files, counts = res$counts,
+             report_files = json_array(res$report_files),
+             zip = res$zip)
+      }
+    },
     avior_abort(paste0("unknown command: ", opts$command,
                        " (expected: ", avior_command_hint(), ")"))
   )
@@ -219,6 +264,48 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
       cli::cli_alert_danger(paste0("check: ", length(result$findings),
                                    " finding(s)"))
       print_findings(result$findings)
+    }
+  } else if (identical(result$command, "test")) {
+    msg <- paste0(
+      "test: ", result$files, " file(s), ", result$tests, " test(s) -- ",
+      result$passed, " passed, ", result$failed, " failed, ",
+      result$skipped, " skipped (", result$path, ")")
+    if (identical(result$status, "fail")) {
+      cli::cli_alert_danger(msg)
+    } else {
+      cli::cli_alert_success(msg)
+    }
+  } else if (identical(result$command, "bundle")) {
+    if (identical(result$status, "fail")) {
+      cli::cli_alert_danger(paste0("bundle: ", result$message))
+      print_findings(result$findings)
+    } else {
+      cli::cli_alert_success(paste0(
+        "bundle: ", result$path, " (", result$files, " file(s))",
+        if (!is.null(result$zip)) paste0(" + ", result$zip) else ""))
+      if (isTRUE(result$forced)) {
+        cli::cli_alert_danger(paste0(
+          "compiled with --force: integrity check FAILED at generation ",
+          "time (disclosed in BUNDLE.yml and on the report cover)"))
+      }
+    }
+  } else if (identical(result$command, "verify")) {
+    if (identical(result$status, "pass")) {
+      cli::cli_alert_success(paste0(
+        "verify: PASS -- ", result$files_checked, " file(s) match ",
+        "MANIFEST.sha256"))
+      cli::cli_bullets(c(
+        " " = paste0("anchor sha256(MANIFEST.sha256) = ", result$anchor),
+        "i" = paste0("the manifest proves internal consistency only; ",
+                     "record the anchor in git/QMS/a signature (PRD 5.8)")))
+    } else {
+      cli::cli_alert_danger(paste0(
+        "verify: FAIL -- ", length(result$findings), " finding(s) in ",
+        result$bundle))
+      for (f in result$findings) {
+        cli::cli_bullets(c(" " = paste0("[", f$type, "] ", f$path, ": ",
+                                        f$message)))
+      }
     }
   } else if (identical(result$command, "assess")) {
     cli::cli_alert_success(paste0(

@@ -6,7 +6,7 @@
 
 `renv.lock` in → a signature-ready validation evidence bundle out.
 
-[![Status](https://img.shields.io/badge/status-M1%20implemented%20·%20M2%20in%20planning-green)](./docs/PRD.md)
+[![Status](https://img.shields.io/badge/status-M1%20%2B%20M2%20implemented-green)](./docs/PRD.md)
 [![CI](https://github.com/Thynexa/AVIOR/actions/workflows/ci.yml/badge.svg)](https://github.com/Thynexa/AVIOR/actions/workflows/ci.yml)
 [![Coverage](https://github.com/Thynexa/AVIOR/actions/workflows/coverage.yml/badge.svg)](https://github.com/Thynexa/AVIOR/actions/workflows/coverage.yml)
 [![Lint](https://github.com/Thynexa/AVIOR/actions/workflows/lint.yml/badge.svg)](https://github.com/Thynexa/AVIOR/actions/workflows/lint.yml)
@@ -28,11 +28,11 @@ AVIOR is a **local-first evidence compiler for R package validation** in regulat
 
 The name comes from **Avior (ε Carinae)**, a star in the keel of the mythical ship Argo — the keel of a validation program.
 
-> ### 📌 Current status: M1 core pipeline implemented; M2 (evidence compilation) next
+> ### 📌 Current status: M1 core pipeline and M2 evidence compilation implemented
 >
 > The `avior` R package now implements the **M1 milestone** of the PRD: `init` / `scan` / `assess` / `review` plus the `check` CI gate (pulled forward from M2), built test-driven against the frozen v1.6 file contracts — ~490 tests, byte-identical artifacts, CI on Linux/macOS/Windows plus the R 4.1 floor (PRs #17–#19).
 >
-> The **evidence-compilation half is not implemented yet**: `test`, `bundle`, `verify` and the Chinese report template are milestone **M2**. The engine default is riskmetric; assessments need it installed at runtime (`check` validates policies offline via the static metric registry).
+> The **M2 milestone** now ships too (issues #30–#33): `avior test` (targeted testthat execution with environment-bound results), `avior bundle` (immutable, byte-reproducible evidence bundles), `avior verify` (auditor-standalone integrity verification), and the **English validation report** (HTML + DOCX, rendered by a built-in dependency-free renderer). English is the V1 report language; the Chinese template is an explicit fail-closed placeholder locale until a complete translation lands (PRD v1.8). The engine default is riskmetric; assessments need it installed at runtime (`check` validates policies offline via the static metric registry).
 >
 > The development baseline is [`PRD.md`](./docs/PRD.md) — all work is scoped against it, and revisions go through pull requests.
 
@@ -62,10 +62,10 @@ avior init      # ✅ scaffold policy file skeleton and directory structure (ide
 avior scan      # ✅ identify dependencies from renv.lock (DESCRIPTION fallback): classification + direct/transitive
 avior assess    # ✅ batch risk scoring via the engine adapter layer (riskmetric; --deep, --offline, --only, --refresh-na true|false)
 avior review    # ✅ generate decision-record stubs; validate completeness/sign-off
-avior test      # ⏳ M2: run targeted testthat tests for medium/high-risk packages
-avior bundle    # ⏳ M2: compile an immutable evidence bundle (report + traceability + fingerprint + manifest)
+avior test      # ✅ run targeted testthat tests, write environment-bound test evidence (--coverage)
+avior bundle    # ✅ compile an immutable evidence bundle (report + traceability + fingerprint + manifest; --force, --zip)
 avior check     # ✅ CI gate: drift + completeness + fail-closed integrity rules (exit 0/1/2)
-avior verify    # ⏳ M2: independently verify bundle integrity (read-only, no project context needed)
+avior verify    # ✅ independently verify bundle integrity (read-only, no project context needed)
 ```
 
 Every command supports `--format json` for machine consumption (FR-X-2); exit codes are 0 = pass, 1 = validation failure, 2 = execution error (FR-X-3).
@@ -157,11 +157,11 @@ AVIOR 是一个面向受监管环境（FDA / EMA / NMPA 申报）的 **local-fir
 
 命名取自船底座 ε（Avior）——神话中阿尔戈号的龙骨，寓意验证体系的龙骨。
 
-> ### 📌 当前状态：M1 核心管线已实现，下一阶段为 M2（证据编译）
+> ### 📌 当前状态：M1 核心管线与 M2 证据编译均已实现
 >
 > `avior` R 包已实现 PRD 的 **M1 里程碑**：`init` / `scan` / `assess` / `review` 以及提前落地的 `check` CI 门禁——全程 TDD、对齐冻结的 v1.6 文件契约，约 490 个测试，产物字节级确定性，CI 覆盖 Linux / macOS / Windows 及 R 4.1 下限（PR #17–#19）。
 >
-> **证据编译半程尚未实现**：`test`、`bundle`、`verify` 与中文报告模板属 **M2** 里程碑。默认引擎为 riskmetric，评分需运行时安装该包（`check` 经静态指标注册表可离线校验策略）。
+> **M2 里程碑现已落地**（issues #30–#33）：`avior test`（定向 testthat 执行 + 环境绑定的测试证据）、`avior bundle`（不可变、字节可复现的证据包）、`avior verify`（审计员独立完整性校验）、以及**英文验证报告**（HTML + DOCX，内建零依赖渲染器）。V1 报告语言为英文；中文模板为显式 fail-closed 占位 locale，完整翻译落地前选择 `zh` 会明确报错（PRD v1.8）。默认引擎为 riskmetric，评分需运行时安装该包（`check` 经静态指标注册表可离线校验策略）。
 >
 > 开发基线是 [`PRD.md`](./docs/PRD.md)——所有工作以此为准，修订走 PR。
 
@@ -191,10 +191,10 @@ avior init      # ✅ 生成策略骨架与目录结构（幂等；--ci github|g
 avior scan      # ✅ 从 renv.lock（缺失时回退 DESCRIPTION）识别依赖：三分类 + direct/transitive
 avior assess    # ✅ 经适配层（riskmetric）批量风险评分（--deep / --offline / --only / --refresh-na true|false）
 avior review    # ✅ 生成决策记录桩 + 完整性/署名校验
-avior test      # ⏳ M2：运行中高风险包的定向 testthat 测试
-avior bundle    # ⏳ M2：编译不可变证据包（报告 + 追溯矩阵 + 环境指纹 + 哈希清单）
+avior test      # ✅ 运行定向 testthat 测试，写出环境绑定的测试证据（--coverage）
+avior bundle    # ✅ 编译不可变证据包（报告 + 追溯矩阵 + 环境指纹 + 哈希清单；--force / --zip）
 avior check     # ✅ CI 门禁：漂移 + 完整性 + fail-closed 规则（退出码 0/1/2）
-avior verify    # ⏳ M2：独立校验证据包完整性（审计员只读，无需项目上下文）
+avior verify    # ✅ 独立校验证据包完整性（审计员只读，无需项目上下文）
 ```
 
 所有命令支持 `--format json` 机器可读输出（FR-X-2）；退出码 0 = 通过、1 = 校验不通过、2 = 执行错误（FR-X-3）。

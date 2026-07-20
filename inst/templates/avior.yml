@@ -27,4 +27,4 @@ depth_by_risk:
   high: targeted_tests_required
 report:
   formats: [html, docx]
-  language: zh
+  language: en                     # English V1; zh is a placeholder locale until translated (fails closed)

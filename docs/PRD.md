@@ -103,7 +103,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | 版本 | 范围 | 优先级标记 |
 | --- | --- | --- |
 | **V1（MVP）** | 第三方包评估管线全闭环：8 条 CLI 命令 + 证据包格式 + CI 门禁 | P0 |
-| **V1.1** | `avior draft tests`（AI 起草定向测试，human-in-the-loop）；英文报告字符串完善 | P1 |
+| **V1.1** | `avior draft tests`（AI 起草定向测试，human-in-the-loop）；中文报告翻译完成（替换 v1.8 起预留的 zh 占位 locale） | P1 |
 | **V2** | 自研包线（编排 valtools）、diffify/oysteR 监控与变更评估、NMPA 双语模板包、rmarkdown 降级渲染 | P2 |
 
 ### 明确不做
@@ -195,7 +195,7 @@ diffify 差异摘要 + oysteR CVE 命中 → 变更影响评估记录 → 定向
 | --- | --- | --- |
 | FR-BUNDLE-1 | 产出不可变证据包目录 `validation/evidence/bundle-<UTC 时间戳>/`；已存在的 bundle 永不覆盖。zip 为**传输件而非归档件**：仅 `--zip` 时生成且默认 gitignore（目录 + manifest 是归档形态，zip 可经 `SOURCE_DATE_EPOCH` 确定性重建）。留存口径：git 历史即归档，工作区可按需裁剪旧 bundle | P0 |
 | FR-BUNDLE-2 | 内容物：验证报告（HTML + docx，PDF 可选）、`traceability.csv` 追溯矩阵、`environment.json` 环境指纹、`session-info.txt` 会话指纹、策略/清单/评分/决策/测试结果的快照副本、`BUNDLE.yml` 元数据、`MANIFEST.sha256` | P0 |
-| FR-BUNDLE-3 | 报告结构对齐 GAMP 5 叙事：方法论引用（四准则）→ **范围与边界声明** → 范围与分类 → 评分与阈值 → 决策汇总 → 测试证据 → 环境与可复现性 → 附录（逐包明细）；模板字符串外置，V1 提供中文，V1.1 补英文。「范围与边界声明」为固定章节，明确本证据包**不覆盖**：计算环境 IQ/OQ/PQ（申办方 IT 在其 QMS 下的责任，GAMP 5 管辖）、项目分析代码的 QC/双重编程（§1.4 边界）、Part 11 控制（宿主系统责任）；`base`/`recommended` 默认豁免须分层署明依据——R-FDA.pdf 仅支持「属官方发行范围、经 R Core SDLC 维护」的**事实**（该文档不下「低风险」结论，且要求组织按 intended use 自定 SOP），「默认豁免（低风险起点）」为 **AVIOR 策略默认值**、其风险分级出处为白皮书四准则，且可经 `scope.include` 拉回 | P0 |
+| FR-BUNDLE-3 | 报告结构对齐 GAMP 5 叙事：方法论引用（四准则）→ **范围与边界声明** → 范围与分类 → 评分与阈值 → 决策汇总 → 测试证据 → 环境与可复现性 → 附录（逐包明细）；模板字符串外置，**V1 提供英文**；中文为显式占位 locale（与英文 schema 同构、`status: placeholder`），翻译完成前选择 `report.language: zh` 必须显式报错拒绝渲染，绝不产出部分翻译或混语报告（v1.8 修订，取代原「V1 中文、V1.1 补英文」决议）。「范围与边界声明」为固定章节，明确本证据包**不覆盖**：计算环境 IQ/OQ/PQ（申办方 IT 在其 QMS 下的责任，GAMP 5 管辖）、项目分析代码的 QC/双重编程（§1.4 边界）、Part 11 控制（宿主系统责任）；`base`/`recommended` 默认豁免须分层署明依据——R-FDA.pdf 仅支持「属官方发行范围、经 R Core SDLC 维护」的**事实**（该文档不下「低风险」结论，且要求组织按 intended use 自定 SOP），「默认豁免（低风险起点）」为 **AVIOR 策略默认值**、其风险分级出处为白皮书四准则，且可经 `scope.include` 拉回 | P0 |
 | FR-BUNDLE-4 | 追溯矩阵列定义见 §6.5；每行打通「包 → 分类 → 评分 → 决策 → 测试 → 结果」 | P0 |
 | FR-BUNDLE-5 | 环境指纹：R 版本、OS/平台、仓库 URL（含 PPM 快照 ID 如有）、`renv.lock` SHA-256、avior 与引擎版本、locale（至少 `LC_COLLATE`）、BLAS/LAPACK 实现与版本（经 `sessionInfo()` 采集；不可得记 `"unknown"`，键不可省略）、容器镜像摘要（可检测时记录，否则 `null`）；完整 `sessionInfo()` 文本随 bundle 存为 `session-info.txt` | P0 |
 | FR-BUNDLE-6 | bundle 前置校验：等价于 `check` 通过才允许编译（`--force` 可越过，但报告首页醒目标注「完整性校验未通过」） | P0 |
@@ -291,7 +291,7 @@ depth_by_risk:                        # 风险档 → 要求
   high: targeted_tests_required
 report:
   formats: [html, docx]
-  language: zh
+  language: en                        # 英文 V1；zh 为占位 locale，翻译完成前选择即报错（v1.8）
 ```
 
 > **init 默认模板与本例的区别**：上例为一个「显式选入 execution 档指标」的项目策略。`avior init` 生成的**默认权重仅含 metadata/network 档指标**（`has_vignettes: 0.5`、`has_news: 0.5`、`has_bug_reports_url: 0.5`、`downloads_1yr: 1.0`、`remote_checks: 1.0`、`last_30_bugs_status: 1.0`）——「测试」准则默认由 `remote_checks`（CRAN 机器检查结果，network 档）承担；`covr_coverage` 等 execution 档指标**不入默认权重**，须组织显式加入并接受 `--deep` 深评成本（如上例）。这保证默认策略下批量 assess 的性能 AC（§5.3）成立、且不产生恒非空的 `na_metrics`。
@@ -351,7 +351,7 @@ bundle-20260715T093000Z/
 
 两列引用的分工：`decision_file` 指向决策记录**文件**（`decisions/<pkg>.yml`）；`use_statement_ref` 指向其中的**字段锚点**（`decisions/<pkg>.yml#use_statement`），供审计员直接定位用途声明，无决策文件的行（如 transitive）两列均留空。行序为包名字母序（FR-X-7）。
 
-`decision` 列的取值分两个命名空间：在范围内的行填 FR-REVIEW-2 决策枚举（`include`/`include_with_tests`/`exclude`）；`transitive` 行固定填行级状态值 **`version_managed`**（「仅版本管理，不深验」——intended-for-use 原则在追溯矩阵上的显式表达），它不属于决策枚举，不对应决策文件。
+`decision` 列的取值分两个命名空间：在范围内的行填 FR-REVIEW-2 决策枚举（`include`/`include_with_tests`/`exclude`）；`transitive` 行固定填行级状态值 **`version_managed`**（「仅版本管理，不深验」——intended-for-use 原则在追溯矩阵上的显式表达），它不属于决策枚举，不对应决策文件。范围之外的 direct 行同理填行级状态值（v1.8 补充定义）：经 `scope.exclude` 排除的填 **`excluded`**，`base`/`recommended` 默认豁免且未被拉回的填 **`exempt`**；两者与 `transitive` 行一样，score/tier 与两个引用列留空。
 
 ---
 
@@ -367,8 +367,8 @@ bundle-20260715T093000Z/
 │            策略引擎 · 决策校验 · 追溯链组装        │
 ├──────────────┬───────────────┬───────────────────┤
 │ 评估适配层    │ 测试运行器     │ 报告编译器          │
-│ riskmetric   │ testthat/covr │ Quarto → html/docx │
-│ (V2:val.meter)│              │ (V2: rmarkdown 降级)│
+│ riskmetric   │ testthat/covr │ 内建渲染 html/docx │
+│ (V2:val.meter)│              │ (零系统前置依赖)    │
 ├──────────────┴───────────────┴───────────────────┤
 │ 状态 = 仓库里的文件。无服务端、无数据库、无守护进程 │
 └──────────────────────────────────────────────────┘
@@ -397,7 +397,7 @@ avior_engine(
 | 实现语言 | R 包为核心 | 用户是 R 团队；riskmetric/testthat/covr 都是 R；零额外运行时 |
 | 最低 R 版本 | R ≥ 4.1 | 受监管环境普遍锁旧版本；不用高于 4.1 的语言特性 |
 | 配置/产物格式 | YAML + CSV | diff 友好（公理 A2）；QA 无需工具即可阅读 |
-| 报告引擎 | Quarto（系统前置依赖，文档明示）| 现代、支持 docx/html/pdf；锁死环境的降级方案（rmarkdown）列 V2 |
+| 报告引擎 | 内建自足渲染器（纯 R 手写 HTML + 最小 OOXML docx，经确定性 stored-zip 打包）| v1.8 修订（原 Quarto）：零系统前置依赖，锁死环境可用；字节级确定性满足 FR-BUNDLE-8/NFR-1；模板字符串外置于 locale 表；PDF 列 V1 之外，Quarto/rmarkdown 如需 PDF 列 V2 选项 |
 | 依赖策略 | 核心依赖最小化（cli、yaml、jsonlite 级别）；引擎与 covr 置 Suggests | AVIOR 自己也会被客户拿来评估——依赖树越小，自身风险画像越好 |
 | 分发 | CRAN 优先 + GitHub Releases | CRAN 收录本身就是目标用户环境准入的信任信号 |
 | 开源许可 | Apache-2.0（已确认） | 专利条款对企业采纳友好 |
@@ -426,7 +426,7 @@ avior_engine(
 | --- | --- | --- | --- |
 | M0 格式定稿 | W1–2 | 证据包结构 + 全部 schema（§6）冻结；手工组装一份样例证据包 | design partner 的 QA 同事审阅样例后确认「此格式可进入我们的签署流程」；schema 评审通过 |
 | M1 核心管线 | W3–6 | `init`/`scan`/`assess`/`review` + 适配层 + 缓存 | 真实项目 50 包产出 inventory/scores/决策桩；FR-SCAN AC 达标；性能实测回填 §8 目标值 |
-| M2 证据编译 | W7–9 | `test`/`bundle`/`check`/`verify` + 报告模板（中文） | J1 全旅程在真实项目跑通；`check` 三场景 AC 通过；`verify` 篡改检测 AC 通过 |
+| M2 证据编译 | W7–9 | `test`/`bundle`/`check`/`verify` + 报告模板（英文 V1；中文占位 locale，v1.8） | J1 全旅程在真实项目跑通；`check` 三场景 AC 通过；`verify` 篡改检测 AC 通过 |
 | M3 试点打磨 | W10–12 | 端到端试点、模板打磨、NFR-5 dogfooding 上线、NFR-9 两份文档 | **一份真实证据包通过内部 QA 审查**；CI 门禁稳定运行 ≥ 2 周；三平台 CI 全绿 |
 | 决策点 | W12 | 依试点反馈决定 V1.1 优先级 | AI 起草（FR-DRAFT，隐私边界已定，见 §11） vs 自研包线提前 |
 
@@ -453,7 +453,7 @@ avior_engine(
 | riskmetric 处于维护模式、val.meter 演进中 | 引擎失修/口径变化 | 适配层（§7.2）；引擎版本钉入证据；跟踪 val.meter 并预研适配器 |
 | 「git 即审计追踪」被客户 QA 质疑 | 证据链认可度 | M0 用样例证据包先行验证；必要时 bundle 附「变更历史导出」章节（仍是文件，不是系统） |
 | intended-for-use 静态识别不准（动态调用、Suggests 边界） | 清单可信度 | 人工覆盖机制（FR-SCAN-4）+ 判定出处可追溯；识别差异纳入 M1 AC 度量 |
-| Quarto/pandoc 在锁死环境不可用 | 报告无法生成 | 前置依赖文档明示；HTML 优先（依赖最轻）；rmarkdown 降级列 V2 |
+| ~~Quarto/pandoc 在锁死环境不可用~~（v1.8 已消解：报告引擎改为内建自足渲染器，零系统前置依赖） | 报告无法生成 | 内建渲染器随包分发；PDF 需求出现时再评估 Quarto/rmarkdown（V2） |
 | 离线环境指标大面积 NA | 评分可信度 | `na_action` 策略显式化 + 报告披露 NA 面；提供联网机器上预热缓存后迁移的操作指引 |
 | 评分/报告性能不达标 | 体验与里程碑 | 缓存（FR-X-5）+ 并行选项；M1 实测回填目标 |
 | 单人/小团队产能 | 范围蔓延 | §2 公理作为需求准入检验；本 PRD 之外的需求默认进 V2 backlog |
@@ -465,7 +465,7 @@ avior_engine(
 | Q1 | AI 起草的模型与隐私边界 | **默认第三方大模型**——被评估对象是开源 R 包，元数据与签名无保密性；端点可配置，有源码保护需求时切换本地模型（FR-DRAFT-3 已同步） |
 | Q2 | 开源许可 | **Apache-2.0**（§7.3 已同步） |
 | Q3 | `evidence/` 是否纳入 git | **纳入**——证据与代码同库，git 历史即归档链（§6.1 已同步） |
-| Q4 | 英文报告字符串时点 | **不进 V1**；V1 仅中文模板，英文随 V1.1（与 §4 版本表一致） |
+| Q4 | 报告语言顺序 | ~~原决议：英文不进 V1，V1 仅中文~~ **v1.8 反转（issue #33）：V1 英文完整交付；中文为 schema 同构的占位 locale（`status: placeholder`），选择即显式报错，翻译随 V1.1**（与 §4 版本表、FR-BUNDLE-3 一致） |
 
 当前无未决问题；新问题按本节格式追加，决议后落档至对应章节。
 
@@ -499,6 +499,7 @@ avior_engine(
 | v1.5 | 2026-07-10 | 落实 issue #15：新增 FR-X-7 确定性排序——生成物包序为包名字母序（C locale），`test-results.yml` 按测试文件路径、manifest 按相对路径；示例文件同步整理 |
 | v1.6 | 2026-07-12 | 落实《产品设计方向与路线评审》（`docs/product-design-review.md`）A/B/C 级处置：A1 新增 FR-X-8 规范化序列化；A2 §6.5 定义 transitive 行 `version_managed` 状态值；A3 FR-BUNDLE-2/5、§6.4 环境指纹扩展（locale/BLAS/容器摘要/`session-info.txt`）；A4 FR-TEST-2 测试结果环境绑定；A5 FR-BUNDLE-3 增「范围与边界声明」固定章节（含 R-FDA.pdf 豁免出处）；A6 FR-CHECK-2 增 `excluded_but_present` 红灯；B1 §7.2 指标成本档（`execution` 默认不批量、注册表可静态获取）；B2 FR-X-5/FR-ASSESS-3 缓存 NA 感知与生效权重披露；B3 FR-BUNDLE-1 zip 定义为传输件；B4 §6.3 预留 `assessment_type`/`supersedes`；B5 NFR-5 拆分 5a/5b；C1 §10-5 度量口径（无 telemetry）；文档版本号自 v1.1 起未随修订记录更新，本次一并对齐。评审子代理复核后修正：FR-X-5 区分 NA 成因（network/execution，防默认策略下重评循环）；§6.2 增 init 默认模板说明（默认权重仅 metadata/network 档，测试准则由 `remote_checks` 承担）；FR-ASSESS-1/AC 增 `run: { deep, network }` 运行模式披露；FR-X-8 细化 flow map 逐产物指明、JSON 风格、CSV 非 ASCII 加引号；§5.6 zip AC 条件化 |
 | v1.7 | 2026-07-12 | **补录**——以下两处契约修订已随实现期评审 PR 合并（PR #17 `df1f047`、PR #18 `c47e445`），本条补齐修订台账：① FR-BUNDLE-3 豁免依据分层署名——R-FDA.pdf 仅支持「属官方发行范围、经 R Core SDLC 维护」的事实（该文档不下「低风险」结论），「默认豁免（低风险起点）」为 AVIOR 策略默认值、风险分级出处为白皮书四准则，可经 `scope.include` 拉回；② FR-SCAN-3 定义扫描不完整契约——不可解析的源码文件不得静默跳过，记入 inventory 可选 `scan: { complete: false, skipped_files }` 段（C locale 排序；完整扫描时省略该段，干净项目 inventory 字节不变），`avior scan` 返回非成功（退出码 1），`check` 报红（`scan_incomplete`）。另：M1（`init`/`scan`/`assess`/`review` + 适配层 + 缓存 + 提前的 `check`）已实现并合并（PR #18/#19），M0/M1 里程碑代码侧完成；M0 出口标准中「design partner QA 审阅样例」仍待执行 |
+| v1.8 | 2026-07-20 | 落实 M2 实现（issues #30–#33）：① 报告语言顺序反转（Q4/§4/§9/FR-BUNDLE-3 联动）——V1 交付完整英文报告，中文降为 schema 同构占位 locale（`status: placeholder`，选择即显式报错，绝不产出混语报告），翻译移至 V1.1；② §7.3「报告引擎」ADR 由 Quarto 改为内建自足渲染器（纯 R HTML + 最小 OOXML docx，确定性 stored-zip 打包，零系统前置依赖），§7.1 架构图与 §10 风险表同步，PDF 维持 V1 之外；③ §6.5 补充定义范围外 direct 行的行级状态值：`scope.exclude` 排除填 `excluded`、默认豁免未拉回填 `exempt`（score/tier/引用列留空，与 transitive 行同型）；④ `avior test`/`verify`/`bundle` 与英文报告随本轮实现落地（FR-TEST-1..3、FR-VERIFY-1..3、FR-BUNDLE-1,2,4..8） |
 
 ---
 

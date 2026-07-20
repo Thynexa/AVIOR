@@ -29,4 +29,4 @@ depth_by_risk:
   high: targeted_tests_required
 report:
   formats: [html, docx]
-  language: zh
+  language: en

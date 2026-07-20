@@ -13,7 +13,19 @@ read_inventory <- function(cfg) {
   if (!file.exists(path)) {
     avior_abort(paste0("inventory not found: ", path, " (run `avior scan` first)"))
   }
-  read_yaml_file(path)
+  # every failure mode is an avior_error (a raw yaml parse error is a
+  # plain simpleError that would bypass avior_error handlers)
+  inv <- tryCatch(read_yaml_file(path), error = function(e) {
+    avior_abort(paste0("cannot parse ", path, ": ", conditionMessage(e),
+                       "; re-run `avior scan`"))
+  })
+  # FR-X-6 at the semantic read boundary: an unknown (missing or future)
+  # schema must never be interpreted as v1 facts
+  if (!is.list(inv) || !avior_schema_v1(inv$avior)) {
+    avior_abort(paste0(path, " has a missing or unsupported schema version ",
+                       "(expected avior: 1); re-run `avior scan`"))
+  }
+  inv
 }
 
 # FR-X-5 cause enum is network|execution|version: "network" = may self-heal
