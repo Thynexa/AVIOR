@@ -182,8 +182,9 @@ test_that("hostile zips are refused before extraction (exit 2)", {
 
   # duplicate entries are ambiguous -> refuse
   z <- tempfile(fileext = ".zip")
-  avior:::zip_write_entries(z, list("MANIFEST.sha256" = payload,
-                                    "MANIFEST.sha256" = payload))
+  dup_entries <- list(payload, payload)
+  names(dup_entries) <- rep("MANIFEST.sha256", 2)
+  avior:::zip_write_entries(z, dup_entries)
   err <- tryCatch(avior_verify(z), avior_error = function(e) e)
   expect_s3_class(err, "avior_error")
   expect_match(conditionMessage(err), "more than once")

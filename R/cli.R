@@ -296,7 +296,7 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
         "MANIFEST.sha256"))
       cli::cli_bullets(c(
         " " = paste0("anchor sha256(MANIFEST.sha256) = ", result$anchor),
-        " " = paste0("the manifest proves internal consistency only; ",
+        "i" = paste0("the manifest proves internal consistency only; ",
                      "record the anchor in git/QMS/a signature (PRD 5.8)")))
     } else {
       cli::cli_alert_danger(paste0(
