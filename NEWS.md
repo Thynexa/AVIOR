@@ -15,6 +15,20 @@
   disclosed, non-gating reference metric (`coverage_ref`) when covr is
   installed (covr is now in Suggests).
 
+* New command `avior verify <bundle>` / `avior_verify()` (FR-VERIFY-1..3,
+  #31): recomputes the SHA-256 of every file listed in `MANIFEST.sha256`
+  for a bundle directory or transport zip and reports missing, modified,
+  malformed, duplicate, and unexpected files as typed findings in a
+  deterministic order. Runs without any project context — an auditor needs
+  only the bundle and this package. On success it emits the SHA-256 of
+  `MANIFEST.sha256` itself as the external anchor value (record it in the
+  git commit, QMS archive record, or an independent signature; the
+  manifest is not a trust root — PRD §5.8). Zip archives are extracted
+  safely: absolute paths, drive letters, backslashes, `..` traversal, and
+  duplicate entries are rejected before extraction. Ships with an internal
+  deterministic stored-zip writer (`SOURCE_DATE_EPOCH`-stable bytes) used
+  for transport artifacts and fixtures.
+
 ## Packaging, documentation, and community
 
 * Added the full Apache-2.0 license text (`LICENSE.md`), matching the

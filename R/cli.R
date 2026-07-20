@@ -30,7 +30,7 @@ emit_json <- function(x) {
 json_array <- function(x) I(as.character(x))
 
 avior_command_names <- function() {
-  c("init", "scan", "assess", "review", "check", "test")
+  c("init", "scan", "assess", "review", "check", "test", "verify")
 }
 
 avior_command_hint <- function() paste(avior_command_names(), collapse = "|")
@@ -163,6 +163,16 @@ run_command <- function(opts) {
              res$results, function(r) r$package, character(1))))),
            path = res$path)
     },
+    verify = {
+      args <- opts$args
+      if (length(args) == 0) {
+        avior_abort("verify: requires a bundle path (directory or zip)")
+      }
+      bundle <- args[1]
+      reject_extra_args(args[-1], "verify")
+      res <- avior_verify(bundle)
+      c(list(command = "verify"), res)
+    },
     avior_abort(paste0("unknown command: ", opts$command,
                        " (expected: ", avior_command_hint(), ")"))
   )
@@ -246,6 +256,24 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
       cli::cli_alert_danger(msg)
     } else {
       cli::cli_alert_success(msg)
+    }
+  } else if (identical(result$command, "verify")) {
+    if (identical(result$status, "pass")) {
+      cli::cli_alert_success(paste0(
+        "verify: PASS -- ", result$files_checked, " file(s) match ",
+        "MANIFEST.sha256"))
+      cli::cli_bullets(c(
+        " " = paste0("anchor sha256(MANIFEST.sha256) = ", result$anchor),
+        " " = paste0("the manifest proves internal consistency only; ",
+                     "record the anchor in git/QMS/a signature (PRD 5.8)")))
+    } else {
+      cli::cli_alert_danger(paste0(
+        "verify: FAIL -- ", length(result$findings), " finding(s) in ",
+        result$bundle))
+      for (f in result$findings) {
+        cli::cli_bullets(c(" " = paste0("[", f$type, "] ", f$path, ": ",
+                                        f$message)))
+      }
     }
   } else if (identical(result$command, "assess")) {
     cli::cli_alert_success(paste0(
