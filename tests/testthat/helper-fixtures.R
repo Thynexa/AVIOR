@@ -9,6 +9,13 @@ fixture_project_path <- function() {
   testthat::test_path("fixtures", "minimal-project")
 }
 
+# Recursive fixture contents for drift comparisons. Finder metadata is ignored
+# because it is platform-generated, gitignored, and never validation evidence.
+fixture_rel_files <- function(root) {
+  files <- list.files(root, recursive = TRUE, all.files = TRUE, no.. = TRUE)
+  sort(files[basename(files) != ".DS_Store"])
+}
+
 # Path to the repo-level example, when running from a source checkout
 # (dev / CI). Returns NA inside R CMD check where examples/ is not shipped.
 repo_example_path <- function() {
