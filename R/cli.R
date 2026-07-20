@@ -29,7 +29,9 @@ emit_json <- function(x) {
 # (command/status/...) stay unboxed.
 json_array <- function(x) I(as.character(x))
 
-avior_command_names <- function() c("init", "scan", "assess", "review", "check")
+avior_command_names <- function() {
+  c("init", "scan", "assess", "review", "check", "test")
+}
 
 avior_command_hint <- function() paste(avior_command_names(), collapse = "|")
 
@@ -146,6 +148,21 @@ run_command <- function(opts) {
       res <- avior_check(".")
       c(list(command = "check"), res)
     },
+    test = {
+      args <- opts$args
+      coverage <- "--coverage" %in% args; args <- args[args != "--coverage"]
+      reject_extra_args(args, "test")
+      res <- avior_test(".", coverage = coverage)
+      list(command = "test", status = res$status,
+           files = length(res$results),
+           tests = sum(vapply(res$results, function(r) r$tests, integer(1))),
+           passed = sum(vapply(res$results, function(r) r$passed, integer(1))),
+           failed = sum(vapply(res$results, function(r) r$failed, integer(1))),
+           skipped = sum(vapply(res$results, function(r) r$skipped, integer(1))),
+           packages = json_array(sort_c(unique(vapply(
+             res$results, function(r) r$package, character(1))))),
+           path = res$path)
+    },
     avior_abort(paste0("unknown command: ", opts$command,
                        " (expected: ", avior_command_hint(), ")"))
   )
@@ -219,6 +236,16 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
       cli::cli_alert_danger(paste0("check: ", length(result$findings),
                                    " finding(s)"))
       print_findings(result$findings)
+    }
+  } else if (identical(result$command, "test")) {
+    msg <- paste0(
+      "test: ", result$files, " file(s), ", result$tests, " test(s) -- ",
+      result$passed, " passed, ", result$failed, " failed, ",
+      result$skipped, " skipped (", result$path, ")")
+    if (identical(result$status, "fail")) {
+      cli::cli_alert_danger(msg)
+    } else {
+      cli::cli_alert_success(msg)
     }
   } else if (identical(result$command, "assess")) {
     cli::cli_alert_success(paste0(

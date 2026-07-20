@@ -1,5 +1,20 @@
 # avior 0.0.0.9000 (development)
 
+## M2: evidence compilation
+
+* New command `avior test` / `avior_test()` (FR-TEST-1..3, #30): discovers
+  testthat files under `validation/tests/`, maps every file to its package
+  through the required `# avior-package: <pkg>` header (missing, ambiguous,
+  malformed, or out-of-scope mappings are execution errors naming every
+  offending file), runs the targeted tests, and writes canonical
+  `validation/test-results.yml` with per-test-file results bound to the
+  runtime environment (package version, lockfile SHA-256, R
+  version/platform) for consumption by `avior check` and `avior bundle`.
+  A failing targeted test exits 1; skipped or errored expectations are
+  never reported as passes. `--coverage` collects covr coverage as a
+  disclosed, non-gating reference metric (`coverage_ref`) when covr is
+  installed (covr is now in Suggests).
+
 ## Packaging, documentation, and community
 
 * Added the full Apache-2.0 license text (`LICENSE.md`), matching the
