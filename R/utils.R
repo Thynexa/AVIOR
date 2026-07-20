@@ -18,3 +18,12 @@ avior_abort <- function(msg, class = "avior_error") {
 finding <- function(package, type, message, fix = NULL) {
   list(package = package, type = type, message = message, fix = fix)
 }
+
+# FR-X-6 exact schema-version check, shared by every artifact reader.
+# as.integer() must never stand in for this: it truncates `1.5` and
+# coerces `true` to 1L, silently accepting a future or invalid schema as
+# v1 — backward READABILITY of old bundles does not mean old readers may
+# interpret unknown future formats.
+avior_schema_v1 <- function(ver) {
+  length(ver) == 1 && is.numeric(ver) && !is.na(ver) && ver == 1
+}

@@ -67,9 +67,15 @@ normalize_decision <- function(d, pkg) {
   scalar_text <- function(v) {
     is.character(v) && length(v) == 1L && !is.na(v)
   }
-  keep <- function(v) if (scalar_text(v)) v else NULL
+  # the reader (review_findings) coerces field values through trimws(),
+  # so a YAML scalar like `reviewed_by: 123` counts as a valid signature
+  # there — the normalizer must accept the SAME scalars (as character),
+  # never silently drop a field the gate just accepted
+  keep <- function(v) {
+    if (is.atomic(v) && length(v) == 1L && !is.na(v)) as.character(v) else NULL
+  }
   if (!is.list(d)) return(NULL)
-  if (!identical(as.integer(d$avior %||% 0L), 1L)) return(NULL)
+  if (!avior_schema_v1(d$avior)) return(NULL)   # exact v1, like the reader
   if (!identical(d$package %||% "", pkg)) return(NULL)
   dec <- d$decision %||% ""
   if (!scalar_text(dec) || !nzchar(dec) || !(dec %in% DECISION_ENUM)) {

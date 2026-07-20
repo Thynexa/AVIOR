@@ -18,10 +18,11 @@
   (per result row — a green file cannot mask an all-skipped sibling;
   `no_passing_tests` finding names the file), the report's test-evidence
   section, and the traceability `test_status` column. The
-  `test-results.yml` schema now requires all four counts as reconciling
-  non-negative integers (`tests == passed + failed + skipped`) and
-  unique result file paths, so hand-edited rows cannot fabricate passing
-  evidence. `avior check` binds evidence to the decision's DECLARED test
+  `test-results.yml` schema now requires an exact top-level `avior: 1`
+  version (FR-X-6 — evidence in an unknown schema is invalid, never
+  interpreted), all four counts as reconciling non-negative integers
+  (`tests == passed + failed + skipped`), and unique result file paths,
+  so hand-edited rows cannot fabricate passing evidence. `avior check` binds evidence to the decision's DECLARED test
   files: every path an `include_with_tests` decision lists must have a
   fresh passing result for that package — adding a required test without
   re-running `avior test` turns the gate red.
@@ -69,8 +70,11 @@
   reports as findings (unparseable or schema-invalid
   `test-results.yml`/decision records are snapshot verbatim and treated
   as unavailable — decisions are normalized against the reader's
-  `invalid_decision` rules, and every field the report/trace/counts
-  consume is guaranteed scalar), and
+  `invalid_decision` rules with an exact `avior: 1` schema-version match
+  shared by every artifact reader (FR-X-6; `1.5`/`true` no longer read
+  as v1), and every field the report/trace/counts consume is guaranteed
+  scalar while reader-accepted scalar values such as a numeric
+  `reviewed_by` are preserved as text rather than silently dropped), and
   `counts.decisions_signed` counts decisions with a non-empty
   `reviewed_by` signature, not decision files on disk. Existing bundles
   are never overwritten

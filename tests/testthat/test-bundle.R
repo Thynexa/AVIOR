@@ -227,6 +227,44 @@ test_that("--force tolerates inputs check already reported as findings", {
   expect_identical(avior_verify(file.path(root, res$path))$status, "pass")
 })
 
+test_that("reader-accepted scalar signatures survive normalization", {
+  local_bundle_env()
+  root <- local_checked_project()
+  # the gate coerces scalars through trimws(), so a numeric reviewed_by
+  # is a VALID signature there; the bundle must not silently drop the
+  # fact the gate just accepted (signed count, trace reviewer cell)
+  f <- file.path(root, "validation", "decisions", "lme4.yml")
+  writeLines(sub('^reviewed_by: .*$', "reviewed_by: 123", readLines(f)), f)
+  stopifnot(identical(avior_check(root)$status, "pass"))
+
+  res <- avior_bundle(root)
+  expect_identical(res$status, "ok")
+  expect_identical(res$integrity_check, "passed")
+  b <- avior:::read_yaml_file(file.path(root, res$path, "BUNDLE.yml"))
+  expect_identical(b$counts$decisions_signed, 4L)
+  csv <- readLines(file.path(root, res$path, "traceability.csv"),
+                   encoding = "UTF-8")
+  expect_match(csv[startsWith(csv, "lme4,")], ",123,")
+})
+
+test_that("non-v1 decision schema versions are unavailable (FR-X-6)", {
+  local_bundle_env()
+  root <- local_checked_project()
+  # as.integer() would truncate 1.5 to 1L and read a future schema as v1:
+  # the gate must flag it and the forced model must treat it as unavailable
+  f <- file.path(root, "validation", "decisions", "mvtnorm.yml")
+  writeLines(sub("^avior: 1$", "avior: 1.5", readLines(f)), f)
+  gate <- avior_check(root)
+  expect_identical(gate$status, "fail")
+  expect_true("invalid_decision" %in%
+                vapply(gate$findings, function(x) x$type, character(1)))
+
+  res <- avior_bundle(root, force = TRUE)
+  expect_identical(res$status, "ok")
+  b <- avior:::read_yaml_file(file.path(root, res$path, "BUNDLE.yml"))
+  expect_identical(b$counts$decisions_signed, 3L)
+})
+
 test_that("traceability.csv follows the PRD 6.5 schema", {
   local_bundle_env()
   root <- local_checked_project()

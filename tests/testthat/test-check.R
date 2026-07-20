@@ -241,6 +241,22 @@ test_that("inconsistent test counts are invalid results (cannot fabricate passes
   }
 })
 
+test_that("unknown test-results schema versions are invalid evidence (FR-X-6)", {
+  # a future/missing schema version must not satisfy the gate, even with a
+  # valid environment binding and a passing row matching the declared path
+  for (version_line in list("avior: 2", "avior: 1.5", character(0))) {
+    root <- local_example_project()
+    f <- file.path(root, "validation", "test-results.yml")
+    txt <- readLines(f)
+    txt <- txt[!grepl("^avior:", txt)]
+    writeLines(c(version_line, txt), f)
+    res <- avior_check(root)
+    expect_identical(res$status, "fail")
+    expect_true("invalid_test_results" %in% check_types(res),
+                label = paste("version:", paste(version_line, collapse = "")))
+  }
+})
+
 test_that("passing evidence is bound to the decision's declared test files", {
   root <- local_example_project()
   f <- file.path(root, "validation", "test-results.yml")

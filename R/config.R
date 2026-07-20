@@ -88,7 +88,7 @@ avior_config_load <- function(root = ".") {
   # Exact version match (FR-X-6): as.integer() would truncate `1.5`/`1.9` and
   # coerce `true` to 1L, silently accepting a future/invalid schema as v1.
   ver <- user$avior
-  if (length(ver) != 1 || !is.numeric(ver) || is.na(ver) || ver != 1) {
+  if (!avior_schema_v1(ver)) {
     config_abort(paste0("avior.yml: unsupported schema version `",
                         paste(format(ver), collapse = ", "),
                         "` (this avior release reads schema exactly 1)"))

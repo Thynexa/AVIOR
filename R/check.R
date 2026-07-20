@@ -102,6 +102,10 @@ valid_test_results <- function(x) {
     is.numeric(v) && length(v) == 1L && !is.na(v) && is.finite(v) &&
       v >= 0 && v == floor(v)
   }
+  # FR-X-6: the top-level schema version must be EXACTLY v1 before any
+  # row is consumed — evidence in an unknown (missing or future) schema
+  # cannot be interpreted by this reader, let alone satisfy a gate
+  if (!is.list(x) || !avior_schema_v1(x$avior)) return(FALSE)
   rows_ok <- is.list(x) && (is.null(x$results) ||
     (is.list(x$results) && all(vapply(x$results, function(row) {
       # every count is REQUIRED and they must reconcile: a hand-edited row

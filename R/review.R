@@ -67,7 +67,9 @@ review_findings <- function(cfg, inventory = NULL, scores = NULL) {
                   fix = "fix the YAML structure in the decision record (see PRD 6.3)"))
       next
     }
-    if (!identical(as.integer(d$avior %||% 0L), 1L)) {
+    if (!avior_schema_v1(d$avior)) {
+      # exact version match (FR-X-6): as.integer() would truncate `1.5`
+      # and coerce `true` to 1L, silently reading an unknown schema as v1
       add(finding(pkg, "invalid_decision",
                   "decision record has a missing or unsupported schema version (expected avior: 1)",
                   fix = "set `avior: 1` in the decision record"))
