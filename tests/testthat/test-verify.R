@@ -170,7 +170,12 @@ test_that("hostile zips are refused before extraction (exit 2)", {
     "../escape.txt" = payload,
     "/abs.txt" = payload,
     "C:\\win.txt" = payload,
-    "a/../b.txt" = payload
+    "a/../b.txt" = payload,
+    # DIRECTORY entries must be validated too: a trailing `/` used to
+    # bypass the path-safety check entirely
+    "../escape/" = payload,
+    "C:\\escape\\" = payload,
+    "a/../" = payload
   )
   for (name in names(hostile)) {
     z <- tempfile(fileext = ".zip")
@@ -187,6 +192,29 @@ test_that("hostile zips are refused before extraction (exit 2)", {
   dup_entries <- list(payload, payload)
   names(dup_entries) <- rep("MANIFEST.sha256", 2)
   avior:::zip_write_entries(z, dup_entries)
+  err <- tryCatch(avior_verify(z), avior_error = function(e) e)
+  expect_s3_class(err, "avior_error")
+  expect_match(conditionMessage(err), "more than once")
+
+  # entries that alias each other after ASCII case-folding extract to the
+  # SAME file on default macOS/Windows filesystems: verification of such
+  # an archive would depend on the host, so it is refused everywhere.
+  # This archive would otherwise VERIFY on a case-insensitive filesystem:
+  # `A` and `a` share content and the manifest lists both.
+  content <- charToRaw("same-bytes\n")
+  sha <- digest::digest(content, algo = "sha256", serialize = FALSE)
+  manifest <- charToRaw(paste0(sha, "  A\n", sha, "  a\n"))
+  z <- tempfile(fileext = ".zip")
+  avior:::zip_write_entries(z, list(
+    "A" = content, "MANIFEST.sha256" = manifest, "a" = content))
+  err <- tryCatch(avior_verify(z), avior_error = function(e) e)
+  expect_s3_class(err, "avior_error")
+  expect_match(conditionMessage(err), "case-folded")
+
+  # a directory row aliasing a file after case-folding is refused too
+  z <- tempfile(fileext = ".zip")
+  avior:::zip_write_entries(z, list(
+    "MANIFEST.sha256" = manifest, "x" = content, "X/" = raw(0)))
   err <- tryCatch(avior_verify(z), avior_error = function(e) e)
   expect_s3_class(err, "avior_error")
   expect_match(conditionMessage(err), "more than once")

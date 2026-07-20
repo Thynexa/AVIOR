@@ -20,6 +20,16 @@ testthat_api <- function() {
   )
 }
 
+# The version string exactly as the installed DESCRIPTION declares it.
+# utils::packageVersion() canonicalizes `-` to `.` (survival "3.8-6" would
+# become "3.8.6"), which no longer matches the renv.lock/inventory literal
+# and would make freshly generated evidence look stale. Record the raw
+# ground truth instead; the check reader compares with package_version
+# semantics anyway.
+installed_package_version <- function(pkg) {
+  as.character(utils::packageDescription(pkg, fields = "Version"))
+}
+
 # Wall-clock seam: golden tests mock this so duration_s (the only
 # measured, non-reproducible field besides run_at) becomes deterministic.
 test_timer <- function(expr) {
@@ -200,15 +210,21 @@ avior_test <- function(root = ".", coverage = FALSE) {
     pkg <- mapping[[rel]]
     rows[[length(rows) + 1L]] <- run_test_file(
       api, file.path(cfg$root, cfg$project$validation_dir, rel), rel, pkg,
-      as.character(utils::packageVersion(pkg)), coverage)
+      installed_package_version(pkg), coverage)
   }
 
   path <- write_test_results(cfg, rows, environment_binding,
                              api$version, avior_timestamp())
 
+  # A file that produced no passing test is NOT evidence: all-skipped and
+  # zero-test files must never read as success (issue #30 AC — skip/error
+  # states cannot be silently reported as pass). An empty run (no files)
+  # stays "ok": it claims nothing, and `check` still gates
+  # include_with_tests packages on recorded passing evidence.
   failed_total <- sum(vapply(rows, function(r) r$failed, integer(1)))
+  no_evidence <- any(vapply(rows, function(r) r$passed == 0L, logical(1)))
   list(
-    status = if (failed_total > 0) "fail" else "ok",
+    status = if (failed_total > 0 || no_evidence) "fail" else "ok",
     results = rows,
     environment = environment_binding,
     testthat_version = api$version,

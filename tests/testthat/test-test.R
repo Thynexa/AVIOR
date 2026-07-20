@@ -173,6 +173,63 @@ test_that("re-running with a mocked timer is byte-identical (FR-X-8)", {
   expect_true(any(grepl("^    duration_s: 0\\.42$", lines)))
 })
 
+test_that("all-skipped and zero-test files are never reported as success", {
+  skip_if_covr()
+  # a file whose run produced no passing test is not evidence (issue #30)
+  root <- local_targeted_project()
+  write_test_file(root, "test-digest.R", c(
+    "# avior-package: digest",
+    'test_that("skips only", { skip("environment not ready") })'))
+  res <- avior_test(root)
+  expect_identical(res$status, "fail")
+  r <- test_results_of(root)$results[[1]]
+  expect_identical(r$passed, 0L)
+  expect_identical(r$skipped, 1L)
+
+  # ...and check refuses it as include_with_tests evidence
+  dir.create(file.path(root, "validation", "decisions"))
+  writeLines(c(
+    "avior: 1",
+    "package: digest",
+    "decision: include_with_tests"
+  ), file.path(root, "validation", "decisions", "digest.yml"))
+  types <- vapply(avior_check(root)$findings, function(f) f$type,
+                  character(1))
+  expect_true("no_passing_tests" %in% types)
+  expect_false("missing_test_results" %in% types)
+
+  # a header-only file with zero test_that() blocks is equally non-evidence
+  root2 <- local_targeted_project()
+  write_test_file(root2, "test-digest.R", "# avior-package: digest")
+  res2 <- avior_test(root2)
+  expect_identical(res2$status, "fail")
+  expect_identical(test_results_of(root2)$results[[1]]$tests, 0L)
+})
+
+test_that("the recorded version is the DESCRIPTION literal, matched by semantics", {
+  skip_if_covr()
+  # packageVersion() canonicalizes `-` to `.`; the writer must preserve the
+  # installed DESCRIPTION literal so evidence matches the lockfile string
+  # (survival "3.8-6" style), and the check reader compares by
+  # package_version semantics rather than identical()
+  hyphenated <- function(pkg) {
+    gsub(".", "-", as.character(utils::packageVersion(pkg)), fixed = TRUE)
+  }
+  testthat::local_mocked_bindings(
+    installed_package_version = hyphenated, .package = "avior")
+
+  root <- local_targeted_project()
+  write_test_file(root, "test-digest.R", passing_test("digest"))
+  expect_identical(avior_test(root)$status, "ok")
+
+  r <- test_results_of(root)$results[[1]]
+  expect_identical(r$package_version, hyphenated("digest"))  # raw literal
+  # the inventory carries the dotted form; semantics say they match
+  types <- vapply(avior_check(root)$findings, function(f) f$type,
+                  character(1))
+  expect_false("stale_tests" %in% types)
+})
+
 test_that("mapping defects are aggregated execution errors naming each file", {
   root <- local_targeted_project()
   write_test_file(root, "test-a.R", c("x <- 1"))                    # missing

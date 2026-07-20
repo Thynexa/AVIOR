@@ -11,9 +11,11 @@ Never a gate: any coverage failure omits the field and the run proceeds.}
 \value{
 \code{list(status = "ok"|"fail", results = list(...), environment =
 list(...), testthat_version, path)}; one result row per test file with
-pass/fail/skip counts and duration. A failing targeted test maps to CLI
-exit code 1 (business failure); malformed inputs or a runner crash map to
-exit code 2 (FR-X-3).
+pass/fail/skip counts and duration. A failing targeted test — or a file
+whose run produced no passing test at all (all skipped, or zero
+\code{test_that()} blocks) — maps to CLI exit code 1 (business failure):
+a run without passing evidence is not evidence. Malformed inputs or a
+runner crash map to exit code 2 (FR-X-3).
 }
 \description{
 Discovers testthat files under \code{validation/tests/}, maps every file
@@ -23,9 +25,13 @@ errors naming every offending file, FR-TEST-1), runs them, and writes
 canonical \code{validation/test-results.yml} for consumption by
 \code{avior check} and \code{avior bundle} (FR-TEST-2).
 
-Results are bound to the runtime environment: the tested package version,
-the current lockfile SHA-256, and the R version/platform. \code{avior
-check} treats a version or lockfile mismatch as stale evidence.
+Results are bound to the runtime environment: the tested package version
+(the installed \code{DESCRIPTION} \code{Version} literal, so lockfile
+forms such as \code{3.8-6} are preserved verbatim), the current lockfile
+SHA-256, and the R version/platform. \code{avior check} treats a version
+or lockfile mismatch as stale evidence, comparing versions with R's
+\code{package_version} semantics (\code{.} and \code{-} are
+interchangeable separators).
 \code{run_at} and \code{duration_s} are measured values; all other output
 is deterministic (\code{SOURCE_DATE_EPOCH} fixes \code{run_at} for
 reproducible rebuilds, FR-X-8).

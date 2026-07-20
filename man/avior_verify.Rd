@@ -22,8 +22,11 @@ reports missing, modified, malformed, duplicate, and unexpected files
 (FR-VERIFY-1). Runs without any project context — no \code{avior.yml},
 no lockfile, no assessment engine — so an auditor needs only the bundle
 and this package (FR-VERIFY-2). Zip archives are extracted safely:
-absolute paths, drive letters, backslashes, \code{..} traversal, and
-duplicate entries are rejected before extraction.
+absolute paths, drive letters, backslashes, and \code{..} traversal are
+rejected before extraction — for directory entries too — as are entries
+that duplicate one another byte-for-byte or after ASCII case-folding
+(\code{A} and \code{a} alias the same file on default macOS/Windows
+filesystems, which would make the verdict host-dependent).
 
 Trust boundary (PRD 5.8): the manifest proves the bundle's internal
 consistency only. Whoever can rewrite bundle files can rewrite the

@@ -7,7 +7,11 @@
 \item{force}{Compile even when the pre-compilation \code{avior check}
 gate fails (FR-BUNDLE-6). The failure is disclosed machine-readably in
 \code{BUNDLE.yml} (\code{integrity_check: failed}, \code{forced: true},
-finding count and types) and prominently on the report cover page.}
+finding count and types) and prominently on the report cover page.
+Inputs that \code{check} reports as findings — an unparseable
+\code{test-results.yml} or decision record — do not crash a forced
+compile: they are snapshot verbatim and treated as unavailable by the
+report and counts.}
 \item{zip}{Additionally write \code{bundle-<UTC>.zip} next to the bundle
 directory. The zip is a transport artifact, not the archival form
 (FR-BUNDLE-1): it is gitignored by \code{avior init} and deterministically
@@ -30,8 +34,10 @@ byte-identical copies of \code{avior.yml}, \code{inventory.yml},
 (transitive rows carry \code{version_managed}; out-of-scope direct rows
 \code{exempt} or \code{excluded}); \code{environment.json} and
 \code{session-info.txt} (FR-BUNDLE-5, with \code{"unknown"} fallbacks and
-an honest \code{null} container digest); \code{BUNDLE.yml} metadata; and
-a path-sorted \code{MANIFEST.sha256} covering every file except itself.
+an honest \code{null} container digest); \code{BUNDLE.yml} metadata
+(\code{counts.decisions_signed} counts decisions carrying a non-empty
+\code{reviewed_by} signature, not decision files on disk); and a
+path-sorted \code{MANIFEST.sha256} covering every file except itself.
 
 For identical inputs the data artifacts are byte-identical;
 \code{SOURCE_DATE_EPOCH} additionally fixes the embedded timestamps

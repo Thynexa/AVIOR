@@ -11,9 +11,16 @@
   runtime environment (package version, lockfile SHA-256, R
   version/platform) for consumption by `avior check` and `avior bundle`.
   A failing targeted test exits 1; skipped or errored expectations are
-  never reported as passes. `--coverage` collects covr coverage as a
-  disclosed, non-gating reference metric (`coverage_ref`) when covr is
-  installed (covr is now in Suggests).
+  never reported as passes, and a file whose run produced no passing
+  test at all (all skipped, or zero `test_that()` blocks) is a business
+  failure — `avior check` correspondingly gates `include_with_tests`
+  packages on recorded *passing* evidence (`no_passing_tests` finding).
+  The recorded package version is the installed `DESCRIPTION` `Version`
+  literal (lockfile forms like `3.8-6` are preserved), and the check
+  reader compares versions with R's `package_version` semantics.
+  `--coverage` collects covr coverage as a disclosed, non-gating
+  reference metric (`coverage_ref`) when covr is installed (covr is now
+  in Suggests).
 
 * New command `avior verify <bundle>` / `avior_verify()` (FR-VERIFY-1..3,
   #31): recomputes the SHA-256 of every file listed in `MANIFEST.sha256`
@@ -24,8 +31,11 @@
   `MANIFEST.sha256` itself as the external anchor value (record it in the
   git commit, QMS archive record, or an independent signature; the
   manifest is not a trust root — PRD §5.8). Zip archives are extracted
-  safely: absolute paths, drive letters, backslashes, `..` traversal, and
-  duplicate entries are rejected before extraction. Ships with an internal
+  safely: absolute paths, drive letters, backslashes, and `..` traversal
+  are rejected before extraction — for directory entries too — as are
+  entries duplicated byte-for-byte or after ASCII case-folding (such
+  archives extract host-dependently on case-insensitive filesystems).
+  Ships with an internal
   deterministic stored-zip writer (`SOURCE_DATE_EPOCH`-stable bytes) used
   for transport artifacts and fixtures.
 
@@ -43,7 +53,12 @@
   every file except itself. Compilation is gated on the equivalent of
   `avior check`; `--force` proceeds with a machine-readable disclosure
   (`integrity_check: failed`, `forced: true`, finding count/types) that
-  the report cover surfaces. Existing bundles are never overwritten
+  the report cover surfaces; a forced compile tolerates inputs `check`
+  reports as findings (unparseable `test-results.yml`/decision records
+  are snapshot verbatim and treated as unavailable), and
+  `counts.decisions_signed` counts decisions with a non-empty
+  `reviewed_by` signature, not decision files on disk. Existing bundles
+  are never overwritten
   (timestamp collisions abort). For identical inputs the data artifacts
   are byte-identical, and `SOURCE_DATE_EPOCH` fixes embedded timestamps
   for fully reproducible bundles. `--zip` additionally emits a

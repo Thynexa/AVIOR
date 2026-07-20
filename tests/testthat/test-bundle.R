@@ -162,6 +162,51 @@ test_that("a failing check blocks compilation; --force discloses (FR-BUNDLE-6)",
   expect_identical(avior_verify(file.path(root, forced$path))$status, "pass")
 })
 
+test_that("decisions_signed counts signatures, not decision files", {
+  local_bundle_env()
+  root <- local_checked_project()
+  # blank one signature -> `unsigned` finding -> gate fails -> --force
+  f <- file.path(root, "validation", "decisions", "mvtnorm.yml")
+  writeLines(sub('^reviewed_by: .*$', 'reviewed_by: ""', readLines(f)), f)
+  stopifnot(identical(avior_check(root)$status, "fail"))
+
+  res <- avior_bundle(root, force = TRUE)
+  b <- avior:::read_yaml_file(file.path(root, res$path, "BUNDLE.yml"))
+  # the same BUNDLE.yml that discloses `unsigned` must not claim all four
+  # decisions are signed
+  expect_true("unsigned" %in% unlist(b$check_finding_types))
+  expect_identical(b$counts$decisions_signed, 3L)
+})
+
+test_that("--force tolerates inputs check already reported as findings", {
+  local_bundle_env()
+  root <- local_checked_project()
+  # invalid YAML in test-results.yml -> invalid_test_results finding;
+  # unparseable decision -> review finding; both must not crash a forced
+  # compile (FR-BUNDLE-6: --force proceeds with disclosure)
+  writeLines("results: [", file.path(root, "validation", "test-results.yml"))
+  writeLines("{{{", file.path(root, "validation", "decisions", "mvtnorm.yml"))
+  gate <- avior_check(root)
+  stopifnot(identical(gate$status, "fail"))
+
+  blocked <- avior_bundle(root)
+  expect_identical(blocked$status, "fail")     # unforced still blocks
+
+  res <- avior_bundle(root, force = TRUE)
+  expect_identical(res$status, "ok")
+  expect_true(res$forced)
+  b <- avior:::read_yaml_file(file.path(root, res$path, "BUNDLE.yml"))
+  expect_identical(b$integrity_check, "failed")
+  expect_identical(b$counts$tests_run, 0L)     # unusable evidence != evidence
+  expect_identical(b$counts$decisions_signed, 3L)
+  # the broken inputs are still snapshot verbatim for the audit trail
+  snap <- file.path(root, res$path, "snapshot")
+  expect_identical(readLines(file.path(snap, "test-results.yml")),
+                   "results: [")
+  # and the bundle still verifies: disclosure, not corruption
+  expect_identical(avior_verify(file.path(root, res$path))$status, "pass")
+})
+
 test_that("traceability.csv follows the PRD 6.5 schema", {
   local_bundle_env()
   root <- local_checked_project()

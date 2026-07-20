@@ -173,26 +173,46 @@ verify_zip_entries <- function(zipfile) {
     }
   )
   names <- listing$Name
-  entries <- names[!grepl("/$", names)]   # directory rows carry no content
-  for (p in entries) {
+  # EVERY entry name is validated before extraction — directory rows too:
+  # a hostile directory name (`../escape/`, `C:\` ...) creates paths outside
+  # the extraction root just as surely as a file entry would. Directories
+  # carry a single trailing `/` which is stripped for the check.
+  stripped <- sub("/$", "", names)
+  for (p in stripped) {
     if (!manifest_path_safe(p)) {
       avior_abort(paste0("unsafe zip entry `", p, "` in ", zipfile,
                          " (absolute, drive-letter, backslash, or `..` ",
                          "paths are not allowed)"))
     }
   }
-  if (anyDuplicated(entries)) {
-    dup <- entries[duplicated(entries)][1]
-    avior_abort(paste0("ambiguous zip archive ", zipfile,
-                       ": entry `", dup, "` appears more than once"))
+  # Duplicates are rejected after ASCII case-folding, not just byte-equal:
+  # `A` and `a` are distinct entries on Linux but alias the SAME file on
+  # default macOS/Windows filesystems, so verification of such an archive
+  # would depend on the host — fail closed instead. Directory rows join the
+  # check so `x/` cannot alias a file `x` either.
+  folded <- tolower(stripped)
+  if (anyDuplicated(folded)) {
+    dup <- stripped[duplicated(folded)][1]
+    avior_abort(paste0("ambiguous zip archive ", zipfile, ": entry `", dup,
+                       "` appears more than once (byte-identical or ",
+                       "case-folded duplicate)"))
   }
-  entries
+  names[!grepl("/$", names)]   # content entries: directory rows carry none
 }
 
 verify_extract_zip <- function(zipfile, exdir) {
   entries <- verify_zip_entries(zipfile)
-  utils::unzip(zipfile, exdir = exdir, unzip = "internal",
-               setTimes = FALSE)
+  # belt-and-braces: the internal unzip downgrades some path problems to
+  # warnings and keeps extracting; after the pre-validation above any
+  # remaining warning is unexpected, so treat it as a refusal (exit 2)
+  withCallingHandlers(
+    utils::unzip(zipfile, exdir = exdir, unzip = "internal",
+                 setTimes = FALSE),
+    warning = function(w) {
+      avior_abort(paste0("cannot extract zip archive ", zipfile, ": ",
+                         conditionMessage(w)))
+    }
+  )
   # layout: MANIFEST.sha256 at the archive root (bundle-dir zip) or inside
   # exactly one top-level directory (transport zip of the bundle dir)
   if (MANIFEST_NAME %in% entries) return(exdir)

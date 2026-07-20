@@ -149,13 +149,24 @@ build_trace <- function(inventory, decisions, scores, tests) {
 # copies only. Returns the relative filenames it wrote into the staging
 # dir; narrative strings live entirely behind this boundary.
 build_bundle_model <- function(cfg, snap, meta, integrity) {
+  # Forced compilation must survive inputs that `check` already reported
+  # as findings (invalid_test_results, unparseable decisions): the bundle
+  # then carries the snapshot bytes plus the disclosure, and the model
+  # treats the artifact as unavailable instead of crashing (FR-BUNDLE-6).
+  # The inventory stays strict — avior_check itself cannot run without it,
+  # so no forced path reaches this point with an unreadable inventory.
+  read_tolerant <- function(path) {
+    x <- tryCatch(read_yaml_file(path), error = function(e) NULL)
+    if (is.list(x)) x else NULL
+  }
   read_opt <- function(name) {
     p <- file.path(snap, name)
-    if (file.exists(p)) read_yaml_file(p) else NULL
+    if (file.exists(p)) read_tolerant(p) else NULL
   }
   inventory <- read_yaml_file(file.path(snap, "inventory.yml"))
   scores <- read_opt("scores.yml")
   tests <- read_opt("test-results.yml")
+  if (!is.null(tests) && !valid_test_results(tests)) tests <- NULL
   policy <- read_yaml_file(file.path(snap, "avior.yml"))
   # the report states EFFECTIVE thresholds: a policy file that omits
   # risk_tiers runs on the validated defaults, so the model carries the
@@ -165,14 +176,23 @@ build_bundle_model <- function(cfg, snap, meta, integrity) {
                                  pattern = "\\.yml$"))
   decisions <- stats::setNames(
     lapply(dec_files, function(f) {
-      read_yaml_file(file.path(snap, "decisions", f))
+      read_tolerant(file.path(snap, "decisions", f))
     }),
     sub("\\.yml$", "", dec_files))
+  decisions <- Filter(Negate(is.null), decisions)
+
+  # signed = a decision that would satisfy the `unsigned` review rule
+  # (non-empty reviewed_by), NOT merely a decision file on disk: a --force
+  # bundle disclosing `unsigned` findings must not simultaneously claim
+  # every decision is signed
+  signed <- sum(vapply(decisions, function(d) {
+    nzchar(trimws(d$reviewed_by %||% ""))
+  }, logical(1)))
 
   counts <- list(
     packages_total = as.integer(inventory$summary$total),
     assessed = if (!is.null(scores)) length(scores$packages) else 0L,
-    decisions_signed = length(decisions),
+    decisions_signed = as.integer(signed),
     tests_run = if (!is.null(tests)) length(tests$results) else 0L
   )
 
@@ -276,7 +296,11 @@ avior_bundle <- function(root = ".", force = FALSE, zip = FALSE) {
   session <- capture_session()
   inventory <- read_yaml_file(file.path(snap, "inventory.yml"))
   scores <- if (file.exists(file.path(snap, "scores.yml"))) {
-    read_yaml_file(file.path(snap, "scores.yml"))
+    # tolerate what check already reported as a finding (forced compiles)
+    tryCatch({
+      s <- read_yaml_file(file.path(snap, "scores.yml"))
+      if (is.list(s)) s else NULL
+    }, error = function(e) NULL)
   } else {
     NULL
   }
@@ -284,8 +308,8 @@ avior_bundle <- function(root = ".", force = FALSE, zip = FALSE) {
     bundle_id = bundle_id,
     generated_at = generated_at,
     avior_version = avior_version(),
-    engine_label = if (!is.null(scores)) {
-      trimws(paste(scores$engine$id, scores$engine$version))
+    engine_label = if (!is.null(scores) && !is.null(scores$engine$id)) {
+      trimws(paste(scores$engine$id, scores$engine$version %||% ""))
     } else {
       cfg$policy$engine
     },

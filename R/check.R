@@ -90,14 +90,16 @@ valid_test_results <- function(x) {
   scalar_text <- function(v) {
     is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
   }
+  count_ok <- function(v) {
+    is.null(v) ||
+      (is.numeric(v) && length(v) == 1L && !is.na(v) && is.finite(v) &&
+         v >= 0 && v == floor(v))
+  }
   is.list(x) && (is.null(x$results) ||
     (is.list(x$results) && all(vapply(x$results, function(row) {
       is.list(row) && scalar_text(row$package) &&
         scalar_text(row$package_version) && scalar_text(row$file) &&
-        (is.null(row$failed) ||
-          (is.numeric(row$failed) && length(row$failed) == 1L &&
-            !is.na(row$failed) && is.finite(row$failed) &&
-            row$failed >= 0 && row$failed == floor(row$failed)))
+        count_ok(row$failed) && count_ok(row$passed)
     }, logical(1)))))
 }
 
@@ -125,17 +127,25 @@ check_test_results <- function(cfg, inventory) {
     return(list(invalid_test_results_finding()))
   }
 
-  tested <- character(0)
+  present <- character(0)   # packages with any recorded row
+  tested <- character(0)    # packages with actual PASSING evidence
+  failing <- character(0)
   for (r in results$results) {
     pkg <- r$package
-    tested <- c(tested, pkg)
-    if (!identical(r$package_version, unname(inv_versions[pkg]))) {
+    present <- c(present, pkg)
+    if ((r$passed %||% 0) > 0) tested <- c(tested, pkg)
+    # package_version semantics, not identical(): R treats `.` and `-` as
+    # interchangeable separators, so an installed "3.8-6" recorded verbatim
+    # must match an inventory "3.8.6" (and vice versa); a malformed version
+    # fails closed as stale
+    if (!same_package_version(r$package_version, unname(inv_versions[pkg]))) {
       add(finding(pkg, "stale_tests",
                   paste0("test results bound to version ", r$package_version,
                          " but the inventory has ", inv_versions[pkg]),
                   fix = "re-run `avior test` against the current environment"))
     }
     if ((r$failed %||% 0) > 0) {
+      failing <- c(failing, pkg)
       add(finding(pkg, "failing_tests",
                   paste0(r$failed, " targeted test(s) failing in ", r$file),
                   fix = "fix the failures, then re-run `avior test`"))
@@ -164,15 +174,21 @@ check_test_results <- function(cfg, inventory) {
     }
   }
 
-  # every include_with_tests decision needs current results
+  # every include_with_tests decision needs current PASSING evidence: a
+  # recorded run whose rows are all skipped or contain zero tests proves
+  # nothing (FR-TEST AC — skips can never be silently reported as pass)
   dec_dir <- file.path(cfg$paths$validation, "decisions")
   for (f in sort_c(list.files(dec_dir, pattern = "\\.yml$", full.names = TRUE))) {
     d <- tryCatch(read_yaml_file(f), error = function(e) NULL)
     if (is.null(d) || !is.list(d) || !identical(d$decision, "include_with_tests")) next
-    if (!(d$package %in% tested)) {
+    if (!(d$package %in% present)) {
       add(finding(d$package, "missing_test_results",
                   "include_with_tests decision but no recorded test results",
                   fix = "run `avior test` to execute and record the targeted tests"))
+    } else if (!(d$package %in% tested) && !(d$package %in% failing)) {
+      add(finding(d$package, "no_passing_tests",
+                  "targeted tests are recorded but produced no passing evidence (all skipped or zero tests)",
+                  fix = "make the targeted tests runnable, then re-run `avior test`"))
     }
   }
   findings
