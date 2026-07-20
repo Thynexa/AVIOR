@@ -241,6 +241,36 @@ test_that("inconsistent test counts are invalid results (cannot fabricate passes
   }
 })
 
+test_that("passing evidence is bound to the decision's declared test files", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "test-results.yml")
+  # same package, same version, valid environment — but the recorded
+  # passing file is NOT the one the decision declares: adding a required
+  # test to the decision without re-running must not read as green
+  writeLines(sub("file: tests/test-lme4-fit.R",
+                 "file: tests/test-lme4-other.R", readLines(f)), f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("missing_test_results" %in% check_types(res))
+  msgs <- vapply(res$findings, function(x) x$message, character(1))
+  expect_true(any(grepl("tests/test-lme4-fit.R", msgs, fixed = TRUE)))
+})
+
+test_that("duplicated result file paths are invalid evidence", {
+  root <- local_example_project()
+  f <- file.path(root, "validation", "test-results.yml")
+  txt <- readLines(f)
+  # duplicate the lme4 row verbatim: the file->evidence binding becomes
+  # ambiguous (a forged passing duplicate could shadow a failing row)
+  start <- grep("file: tests/test-lme4-fit.R", txt)
+  block <- txt[start:(start + 7)]
+  block[1] <- sub("^  - ", "  - ", block[1])
+  writeLines(c(txt, block), f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("invalid_test_results" %in% check_types(res))
+})
+
 test_that("a passing file cannot mask a sibling all-skipped file (per-row rule)", {
   root <- local_example_project()
   f <- file.path(root, "validation", "test-results.yml")

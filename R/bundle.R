@@ -55,6 +55,37 @@ bundle_snapshot <- function(cfg, staging) {
   snap
 }
 
+# Mirror of the decision reader's invalid_decision gate class
+# (review_findings: unparseable, wrong schema version, package/filename
+# mismatch, decision outside the FR-REVIEW-2 enum), plus a guarantee the
+# reader implies but the model must enforce: every field the report,
+# trace, and counts consume is a length-1 scalar. Anything else — e.g.
+# `reviewed_by: [alice, bob]` — is the same schema-invalid gate failure
+# --force must survive, so the record is normalized or dropped as
+# unavailable, never allowed to crash the compiler (FR-BUNDLE-6).
+normalize_decision <- function(d, pkg) {
+  scalar_text <- function(v) {
+    is.character(v) && length(v) == 1L && !is.na(v)
+  }
+  keep <- function(v) if (scalar_text(v)) v else NULL
+  if (!is.list(d)) return(NULL)
+  if (!identical(as.integer(d$avior %||% 0L), 1L)) return(NULL)
+  if (!identical(d$package %||% "", pkg)) return(NULL)
+  dec <- d$decision %||% ""
+  if (!scalar_text(dec) || !nzchar(dec) || !(dec %in% DECISION_ENUM)) {
+    return(NULL)
+  }
+  list(
+    package = pkg,
+    decision = dec,
+    use_statement = keep(d$use_statement),
+    rationale = keep(d$rationale),
+    reviewed_by = keep(d$reviewed_by),
+    date = keep(d$date),
+    tests = as.character(unlist(d$tests))
+  )
+}
+
 # Row-level disposition for the traceability matrix (PRD 6.5): in-scope
 # rows carry the FR-REVIEW-2 decision enum from their decision record;
 # transitive rows the fixed status `version_managed`; out-of-scope direct
@@ -194,19 +225,11 @@ build_bundle_model <- function(cfg, snap, meta, integrity) {
       read_tolerant(file.path(snap, "decisions", f))
     }),
     sub("\\.yml$", "", dec_files))
-  # keep only decisions satisfying the reader's minimal schema: parseable
-  # YAML that is not a decision record (`foo: bar`) is the same
-  # invalid_decision gate failure --force must survive, so it is treated
-  # as unavailable exactly like an unparseable file
-  scalar_text <- function(v) {
-    is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
-  }
-  usable <- vapply(names(decisions), function(pkg) {
-    d <- decisions[[pkg]]
-    !is.null(d) && identical(d$package %||% "", pkg) &&
-      scalar_text(d$decision)
-  }, logical(1))
-  decisions <- decisions[usable]
+  decisions <- stats::setNames(
+    lapply(names(decisions), function(pkg) {
+      normalize_decision(decisions[[pkg]], pkg)
+    }), names(decisions))
+  decisions <- Filter(Negate(is.null), decisions)
 
   # signed = a decision that would satisfy the `unsigned` review rule
   # (non-empty reviewed_by), NOT merely a decision file on disk: a --force

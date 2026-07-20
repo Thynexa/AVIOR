@@ -102,7 +102,7 @@ valid_test_results <- function(x) {
     is.numeric(v) && length(v) == 1L && !is.na(v) && is.finite(v) &&
       v >= 0 && v == floor(v)
   }
-  is.list(x) && (is.null(x$results) ||
+  rows_ok <- is.list(x) && (is.null(x$results) ||
     (is.list(x$results) && all(vapply(x$results, function(row) {
       # every count is REQUIRED and they must reconcile: a hand-edited row
       # such as {tests: 0, passed: 1} must not be able to fabricate
@@ -113,6 +113,11 @@ valid_test_results <- function(x) {
         count_ok(row$failed) && count_ok(row$skipped) &&
         row$tests == row$passed + row$failed + row$skipped
     }, logical(1)))))
+  if (!rows_ok) return(FALSE)
+  # one row per test file: duplicated file paths make the file->evidence
+  # binding ambiguous (a forged passing duplicate could shadow a failing
+  # row), and the canonical writer can never emit them
+  !anyDuplicated(vapply(x$results, function(row) row$file, character(1)))
 }
 
 invalid_test_results_finding <- function() {
@@ -190,9 +195,15 @@ check_test_results <- function(cfg, inventory) {
     }
   }
 
-  # every include_with_tests decision needs recorded results at all; the
-  # per-row rule above already guarantees that whatever IS recorded
-  # carries passing evidence
+  # Evidence is bound to the DECLARED test files, not merely the package:
+  # every path a decision lists under `tests:` must have a fresh passing
+  # result row for that same package. Otherwise adding a required test to
+  # the decision without re-running `avior test` (or pointing results at
+  # an unrelated file) would read as green while the mandated test never
+  # ran. The per-row rule above already covers whatever else IS recorded.
+  passing_keys <- vapply(
+    Filter(test_row_passing, results$results %||% list()),
+    function(r) paste0(r$package, "\r", r$file), character(1))
   dec_dir <- file.path(cfg$paths$validation, "decisions")
   for (f in sort_c(list.files(dec_dir, pattern = "\\.yml$", full.names = TRUE))) {
     d <- tryCatch(read_yaml_file(f), error = function(e) NULL)
@@ -201,6 +212,16 @@ check_test_results <- function(cfg, inventory) {
       add(finding(d$package, "missing_test_results",
                   "include_with_tests decision but no recorded test results",
                   fix = "run `avior test` to execute and record the targeted tests"))
+      next
+    }
+    declared <- sub("^validation/", "", as.character(unlist(d$tests)))
+    for (t in declared) {
+      if (!(paste0(d$package, "\r", t) %in% passing_keys)) {
+        add(finding(d$package, "missing_test_results",
+                    paste0("decision declares ", t, " but there is no fresh ",
+                           "passing result for it"),
+                    fix = "re-run `avior test` so every declared targeted test records passing evidence"))
+      }
     }
   }
   findings

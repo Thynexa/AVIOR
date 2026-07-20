@@ -19,8 +19,12 @@
   `no_passing_tests` finding names the file), the report's test-evidence
   section, and the traceability `test_status` column. The
   `test-results.yml` schema now requires all four counts as reconciling
-  non-negative integers (`tests == passed + failed + skipped`), so
-  hand-edited rows cannot fabricate passing evidence.
+  non-negative integers (`tests == passed + failed + skipped`) and
+  unique result file paths, so hand-edited rows cannot fabricate passing
+  evidence. `avior check` binds evidence to the decision's DECLARED test
+  files: every path an `include_with_tests` decision lists must have a
+  fresh passing result for that package — adding a required test without
+  re-running `avior test` turns the gate red.
   The recorded package version is the installed `DESCRIPTION` `Version`
   literal (lockfile forms like `3.8-6` are preserved), and the check
   reader compares versions with R's `package_version` semantics.
@@ -64,7 +68,9 @@
   the report cover surfaces; a forced compile tolerates inputs `check`
   reports as findings (unparseable or schema-invalid
   `test-results.yml`/decision records are snapshot verbatim and treated
-  as unavailable), and
+  as unavailable — decisions are normalized against the reader's
+  `invalid_decision` rules, and every field the report/trace/counts
+  consume is guaranteed scalar), and
   `counts.decisions_signed` counts decisions with a non-empty
   `reviewed_by` signature, not decision files on disk. Existing bundles
   are never overwritten

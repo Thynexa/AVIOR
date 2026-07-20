@@ -184,11 +184,18 @@ test_that("--force tolerates inputs check already reported as findings", {
   dec <- function(f) file.path(root, "validation", "decisions", f)
   # every flavour of gate failure --force must survive without crashing
   # (FR-BUNDLE-6): invalid YAML in test-results.yml; an UNPARSEABLE
-  # decision; a parseable decision that is NOT a decision record; and a
-  # schema-valid decision merely missing its signature field
+  # decision; a decision the reader classes invalid_decision (wrong
+  # schema version) whose reviewed_by is a length-2 VECTOR (would crash
+  # the signed count if kept); and a schema-valid decision merely
+  # missing its signature field
   writeLines("results: [", file.path(root, "validation", "test-results.yml"))
   writeLines("{{{", dec("mvtnorm.yml"))
-  writeLines("foo: bar", dec("jsonlite.yml"))
+  writeLines(c(
+    "avior: 2",
+    "package: jsonlite",
+    "decision: include",
+    "reviewed_by: [alice, bob]"
+  ), dec("jsonlite.yml"))
   writeLines(grep("^reviewed_by:", readLines(dec("survival.yml")),
                   value = TRUE, invert = TRUE), dec("survival.yml"))
   gate <- avior_check(root)
@@ -210,8 +217,8 @@ test_that("--force tolerates inputs check already reported as findings", {
   snap <- file.path(root, res$path, "snapshot")
   expect_identical(readLines(file.path(snap, "test-results.yml")),
                    "results: [")
-  expect_identical(readLines(file.path(snap, "decisions", "jsonlite.yml")),
-                   "foo: bar")
+  expect_identical(readLines(file.path(snap, "decisions", "jsonlite.yml"))[1],
+                   "avior: 2")
   # unavailable decisions leave blank trace cells rather than crashing
   csv <- readLines(file.path(root, res$path, "traceability.csv"),
                    encoding = "UTF-8")
