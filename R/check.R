@@ -292,6 +292,17 @@ avior_check <- function(root = ".") {
   }
   inventory <- read_yaml_file(inv_path)
 
+  # FR-X-6 fail-closed: an inventory in an unknown (missing or future)
+  # schema cannot be interpreted, so none of the downstream rules can run
+  # against it — one structured finding, never a crash and never a pass
+  if (!is.list(inventory) || !avior_schema_v1(inventory$avior)) {
+    findings <- c(findings, list(finding(
+      "-", "invalid_inventory",
+      "inventory.yml has a missing or unsupported schema version (expected avior: 1) -- its contents cannot be interpreted (FR-X-6)",
+      fix = "re-run `avior scan` to regenerate the inventory")))
+    return(list(status = "fail", findings = findings))
+  }
+
   # An incomplete scan (unparseable source files) is a scope gap: a package
   # referenced only there was missed. Gate on it (FR-SCAN-3 / PR #18 review).
   if (isFALSE(inventory$scan$complete)) {

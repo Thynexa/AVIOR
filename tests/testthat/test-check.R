@@ -241,6 +241,29 @@ test_that("inconsistent test counts are invalid results (cannot fabricate passes
   }
 })
 
+test_that("unknown inventory/scores schema versions fail closed (FR-X-6)", {
+  # inventory: check reports a structured finding, never interprets or crashes
+  root <- local_example_project()
+  f <- file.path(root, "validation", "inventory.yml")
+  writeLines(sub("^avior: 1$", "avior: 2", readLines(f)), f)
+  res <- avior_check(root)
+  expect_identical(res$status, "fail")
+  expect_true("invalid_inventory" %in% check_types(res))
+  # ...and command-side semantic readers refuse it as an execution error
+  cfg <- avior_config_load(root)
+  err <- tryCatch(avior:::read_inventory(cfg), avior_error = function(e) e)
+  expect_s3_class(err, "avior_error")
+  expect_match(conditionMessage(err), "schema version")
+
+  # scores: same rule through the review_findings path
+  root2 <- local_example_project()
+  f2 <- file.path(root2, "validation", "scores.yml")
+  writeLines(sub("^avior: 1$", "avior: 2", readLines(f2)), f2)
+  res2 <- avior_check(root2)
+  expect_identical(res2$status, "fail")
+  expect_true("invalid_scores" %in% check_types(res2))
+})
+
 test_that("unknown test-results schema versions are invalid evidence (FR-X-6)", {
   # a future/missing schema version must not satisfy the gate, even with a
   # valid environment binding and a passing row matching the declared path

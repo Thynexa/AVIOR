@@ -227,6 +227,36 @@ test_that("--force tolerates inputs check already reported as findings", {
   expect_identical(avior_verify(file.path(root, res$path))$status, "pass")
 })
 
+test_that("unknown scores schema is snapshot verbatim but never interpreted", {
+  local_bundle_env()
+  root <- local_checked_project()
+  f <- file.path(root, "validation", "scores.yml")
+  writeLines(sub("^avior: 1$", "avior: 2", readLines(f)), f)
+  stopifnot(identical(avior_check(root)$status, "fail"))
+
+  res <- avior_bundle(root, force = TRUE)
+  expect_identical(res$status, "ok")
+  b <- avior:::read_yaml_file(file.path(root, res$path, "BUNDLE.yml"))
+  expect_identical(b$counts$assessed, 0L)      # not interpreted as v1 facts
+  # the snapshot keeps the original bytes for the audit trail
+  snap_scores <- readLines(file.path(root, res$path, "snapshot", "scores.yml"))
+  expect_true("avior: 2" %in% snap_scores)
+})
+
+test_that("an unknown inventory schema cannot be compiled, even forced", {
+  local_bundle_env()
+  root <- local_checked_project()
+  f <- file.path(root, "validation", "inventory.yml")
+  writeLines(sub("^avior: 1$", "avior: 2", readLines(f)), f)
+  err <- tryCatch(avior_bundle(root, force = TRUE),
+                  avior_error = function(e) e)
+  expect_s3_class(err, "avior_error")
+  expect_match(conditionMessage(err), "schema version")
+  # no partial bundle or staging residue
+  expect_length(list.files(file.path(root, "validation", "evidence"),
+                           all.files = TRUE, no.. = TRUE), 0L)
+})
+
 test_that("reader-accepted scalar signatures survive normalization", {
   local_bundle_env()
   root <- local_checked_project()

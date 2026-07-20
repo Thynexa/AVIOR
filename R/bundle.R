@@ -209,13 +209,21 @@ build_bundle_model <- function(cfg, snap, meta, integrity) {
   # so no forced path reaches this point with an unreadable inventory.
   read_tolerant <- function(path) {
     x <- tryCatch(read_yaml_file(path), error = function(e) NULL)
-    if (is.list(x)) x else NULL
+    # FR-X-6: an artifact in an unknown schema stays in the snapshot
+    # byte-for-byte but is never INTERPRETED by the model
+    if (is.list(x) && avior_schema_v1(x$avior)) x else NULL
   }
   read_opt <- function(name) {
     p <- file.path(snap, name)
     if (file.exists(p)) read_tolerant(p) else NULL
   }
   inventory <- read_yaml_file(file.path(snap, "inventory.yml"))
+  if (!is.list(inventory) || !avior_schema_v1(inventory$avior)) {
+    avior_abort(paste0(
+      "cannot compile a bundle from an inventory with a missing or ",
+      "unsupported schema version (expected avior: 1, FR-X-6); ",
+      "re-run `avior scan`"))
+  }
   scores <- read_opt("scores.yml")
   tests <- read_opt("test-results.yml")
   if (!is.null(tests) && !valid_test_results(tests)) tests <- NULL
@@ -351,11 +359,18 @@ avior_bundle <- function(root = ".", force = FALSE, zip = FALSE) {
 
   session <- capture_session()
   inventory <- read_yaml_file(file.path(snap, "inventory.yml"))
+  if (!is.list(inventory) || !avior_schema_v1(inventory$avior)) {
+    avior_abort(paste0(
+      "cannot compile a bundle from an inventory with a missing or ",
+      "unsupported schema version (expected avior: 1, FR-X-6); ",
+      "re-run `avior scan`"))
+  }
   scores <- if (file.exists(file.path(snap, "scores.yml"))) {
-    # tolerate what check already reported as a finding (forced compiles)
+    # tolerate what check already reported as a finding (forced compiles),
+    # incl. an unknown schema version: snapshot bytes stay, never interpreted
     tryCatch({
       s <- read_yaml_file(file.path(snap, "scores.yml"))
-      if (is.list(s)) s else NULL
+      if (is.list(s) && avior_schema_v1(s$avior)) s else NULL
     }, error = function(e) NULL)
   } else {
     NULL

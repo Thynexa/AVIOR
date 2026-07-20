@@ -8,7 +8,13 @@ read_scores <- function(cfg) {
   if (!file.exists(path)) {
     avior_abort(paste0("scores not found: ", path, " (run `avior assess` first)"))
   }
-  read_yaml_file(path)
+  scores <- read_yaml_file(path)
+  # FR-X-6 at the semantic read boundary (same rule as read_inventory)
+  if (!is.list(scores) || !avior_schema_v1(scores$avior)) {
+    avior_abort(paste0(path, " has a missing or unsupported schema version ",
+                       "(expected avior: 1); re-run `avior assess`"))
+  }
+  scores
 }
 
 decision_path <- function(cfg, pkg) {
@@ -47,7 +53,16 @@ in_scope_packages <- function(inventory) {
 # of finding() objects; also used by check (FR-CHECK-2).
 review_findings <- function(cfg, inventory = NULL, scores = NULL) {
   if (is.null(inventory)) inventory <- read_inventory(cfg)
-  if (is.null(scores)) scores <- read_scores(cfg)
+  if (is.null(scores)) {
+    # the gate must FAIL CLOSED on an uninterpretable scores.yml, not
+    # crash: report the schema defect as a structured finding (FR-X-6)
+    scores <- tryCatch(read_scores(cfg), avior_error = function(e) e)
+    if (inherits(scores, "avior_error")) {
+      return(list(finding(
+        "-", "invalid_scores", conditionMessage(scores),
+        fix = "re-run `avior assess` to regenerate scores.yml")))
+    }
+  }
   findings <- list()
   add <- function(f) findings[[length(findings) + 1L]] <<- f
 

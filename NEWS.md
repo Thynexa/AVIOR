@@ -74,7 +74,13 @@
   shared by every artifact reader (FR-X-6; `1.5`/`true` no longer read
   as v1), and every field the report/trace/counts consume is guaranteed
   scalar while reader-accepted scalar values such as a numeric
-  `reviewed_by` are preserved as text rather than silently dropped), and
+  `reviewed_by` are preserved as text rather than silently dropped). The
+  same exact-version rule guards the inventory and scores read
+  boundaries: `avior check` fails closed with `invalid_inventory`/
+  `invalid_scores` findings, command-side readers refuse with an
+  execution error, and a forced bundle keeps an unknown-schema
+  `scores.yml` snapshot verbatim without interpreting it (an
+  unknown-schema inventory cannot be compiled at all), and
   `counts.decisions_signed` counts decisions with a non-empty
   `reviewed_by` signature, not decision files on disk. Existing bundles
   are never overwritten
