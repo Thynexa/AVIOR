@@ -284,10 +284,12 @@ report_document <- function(model, s) {
         s[["sec6.header.failed"]], s[["sec6.header.skipped"]],
         s[["sec6.header.status"]]),
       lapply(model$tests$results, function(r) {
+        # the shared row rule (test_row_passing): all-skipped/zero-test
+        # rows must not read PASS in the human-facing report either
         c(r$file, paste(r$package, r$package_version),
           as.character(r$tests %||% 0), as.character(r$passed %||% 0),
           as.character(r$failed %||% 0), as.character(r$skipped %||% 0),
-          if ((r$failed %||% 0) > 0) s[["status.fail"]] else s[["status.pass"]])
+          if (test_row_passing(r)) s[["status.pass"]] else s[["status.fail"]])
       })))
     add(blk_para(s[["sec6.coverage_note"]]))
   }

@@ -184,6 +184,19 @@ verify_zip_entries <- function(zipfile) {
                          " (absolute, drive-letter, backslash, or `..` ",
                          "paths are not allowed)"))
     }
+    # Non-ASCII names are refused outright: NFC/NFD variants of the same
+    # text are distinct entries on Linux but alias one path on default
+    # macOS filesystems, and R has no dependency-free Unicode normalizer
+    # to detect that collision deterministically. AVIOR transport zips
+    # only ever contain ASCII bundle paths (R package names are ASCII);
+    # anything else must be verified as a directory, where the filesystem
+    # itself is the single source of truth.
+    if (any(charToRaw(p) > as.raw(0x7F))) {
+      avior_abort(paste0("non-ASCII zip entry `", p, "` in ", zipfile,
+                         " (transport archives contain only ASCII bundle ",
+                         "paths; extract manually and verify the directory ",
+                         "instead)"))
+    }
   }
   # Duplicates are rejected after ASCII case-folding, not just byte-equal:
   # `A` and `a` are distinct entries on Linux but alias the SAME file on

@@ -86,20 +86,32 @@ check_policy <- function(cfg) {
   findings
 }
 
+# The one row-level classification every consumer shares (writer status,
+# check gate, report section 6, traceability test_status): a recorded
+# test-file row is passing evidence iff nothing failed AND something
+# actually passed — an all-skipped or zero-test row proves nothing.
+test_row_passing <- function(r) {
+  (r$failed %||% 0) == 0 && (r$passed %||% 0) > 0
+}
+
 valid_test_results <- function(x) {
   scalar_text <- function(v) {
     is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
   }
   count_ok <- function(v) {
-    is.null(v) ||
-      (is.numeric(v) && length(v) == 1L && !is.na(v) && is.finite(v) &&
-         v >= 0 && v == floor(v))
+    is.numeric(v) && length(v) == 1L && !is.na(v) && is.finite(v) &&
+      v >= 0 && v == floor(v)
   }
   is.list(x) && (is.null(x$results) ||
     (is.list(x$results) && all(vapply(x$results, function(row) {
+      # every count is REQUIRED and they must reconcile: a hand-edited row
+      # such as {tests: 0, passed: 1} must not be able to fabricate
+      # passing evidence (FR-TEST-2 — evidence is provable or invalid)
       is.list(row) && scalar_text(row$package) &&
         scalar_text(row$package_version) && scalar_text(row$file) &&
-        count_ok(row$failed) && count_ok(row$passed)
+        count_ok(row$tests) && count_ok(row$passed) &&
+        count_ok(row$failed) && count_ok(row$skipped) &&
+        row$tests == row$passed + row$failed + row$skipped
     }, logical(1)))))
 }
 
@@ -128,12 +140,9 @@ check_test_results <- function(cfg, inventory) {
   }
 
   present <- character(0)   # packages with any recorded row
-  tested <- character(0)    # packages with actual PASSING evidence
-  failing <- character(0)
   for (r in results$results) {
     pkg <- r$package
     present <- c(present, pkg)
-    if ((r$passed %||% 0) > 0) tested <- c(tested, pkg)
     # package_version semantics, not identical(): R treats `.` and `-` as
     # interchangeable separators, so an installed "3.8-6" recorded verbatim
     # must match an inventory "3.8.6" (and vice versa); a malformed version
@@ -144,11 +153,18 @@ check_test_results <- function(cfg, inventory) {
                          " but the inventory has ", inv_versions[pkg]),
                   fix = "re-run `avior test` against the current environment"))
     }
+    # PER ROW, mirroring the writer's own failure condition: a package with
+    # one passing file must not mask a sibling all-skipped/zero-test file —
+    # the recorded run as a whole was not green (FR-TEST AC)
     if ((r$failed %||% 0) > 0) {
-      failing <- c(failing, pkg)
       add(finding(pkg, "failing_tests",
                   paste0(r$failed, " targeted test(s) failing in ", r$file),
                   fix = "fix the failures, then re-run `avior test`"))
+    } else if (!test_row_passing(r)) {
+      add(finding(pkg, "no_passing_tests",
+                  paste0(r$file, " produced no passing evidence (all ",
+                         "skipped or zero tests)"),
+                  fix = "make the targeted tests runnable, then re-run `avior test`"))
     }
   }
   # FR-TEST-2/A4: results must PROVE their runtime environment. "Cannot prove
@@ -174,9 +190,9 @@ check_test_results <- function(cfg, inventory) {
     }
   }
 
-  # every include_with_tests decision needs current PASSING evidence: a
-  # recorded run whose rows are all skipped or contain zero tests proves
-  # nothing (FR-TEST AC — skips can never be silently reported as pass)
+  # every include_with_tests decision needs recorded results at all; the
+  # per-row rule above already guarantees that whatever IS recorded
+  # carries passing evidence
   dec_dir <- file.path(cfg$paths$validation, "decisions")
   for (f in sort_c(list.files(dec_dir, pattern = "\\.yml$", full.names = TRUE))) {
     d <- tryCatch(read_yaml_file(f), error = function(e) NULL)
@@ -185,10 +201,6 @@ check_test_results <- function(cfg, inventory) {
       add(finding(d$package, "missing_test_results",
                   "include_with_tests decision but no recorded test results",
                   fix = "run `avior test` to execute and record the targeted tests"))
-    } else if (!(d$package %in% tested) && !(d$package %in% failing)) {
-      add(finding(d$package, "no_passing_tests",
-                  "targeted tests are recorded but produced no passing evidence (all skipped or zero tests)",
-                  fix = "make the targeted tests runnable, then re-run `avior test`"))
     }
   }
   findings

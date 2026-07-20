@@ -13,8 +13,14 @@
   A failing targeted test exits 1; skipped or errored expectations are
   never reported as passes, and a file whose run produced no passing
   test at all (all skipped, or zero `test_that()` blocks) is a business
-  failure — `avior check` correspondingly gates `include_with_tests`
-  packages on recorded *passing* evidence (`no_passing_tests` finding).
+  failure. The classification is one shared row-level rule (`failed == 0`
+  and `passed > 0`) applied identically by the writer, `avior check`
+  (per result row — a green file cannot mask an all-skipped sibling;
+  `no_passing_tests` finding names the file), the report's test-evidence
+  section, and the traceability `test_status` column. The
+  `test-results.yml` schema now requires all four counts as reconciling
+  non-negative integers (`tests == passed + failed + skipped`), so
+  hand-edited rows cannot fabricate passing evidence.
   The recorded package version is the installed `DESCRIPTION` `Version`
   literal (lockfile forms like `3.8-6` are preserved), and the check
   reader compares versions with R's `package_version` semantics.
@@ -33,8 +39,10 @@
   manifest is not a trust root — PRD §5.8). Zip archives are extracted
   safely: absolute paths, drive letters, backslashes, and `..` traversal
   are rejected before extraction — for directory entries too — as are
-  entries duplicated byte-for-byte or after ASCII case-folding (such
-  archives extract host-dependently on case-insensitive filesystems).
+  entries duplicated byte-for-byte or after ASCII case-folding, and
+  non-ASCII entry names outright (NFC/NFD variants of the same text alias
+  one path on default macOS filesystems; transport zips only ever carry
+  ASCII bundle paths — verify non-ASCII trees as directories).
   Ships with an internal
   deterministic stored-zip writer (`SOURCE_DATE_EPOCH`-stable bytes) used
   for transport artifacts and fixtures.
@@ -54,8 +62,9 @@
   `avior check`; `--force` proceeds with a machine-readable disclosure
   (`integrity_check: failed`, `forced: true`, finding count/types) that
   the report cover surfaces; a forced compile tolerates inputs `check`
-  reports as findings (unparseable `test-results.yml`/decision records
-  are snapshot verbatim and treated as unavailable), and
+  reports as findings (unparseable or schema-invalid
+  `test-results.yml`/decision records are snapshot verbatim and treated
+  as unavailable), and
   `counts.decisions_signed` counts decisions with a non-empty
   `reviewed_by` signature, not decision files on disk. Existing bundles
   are never overwritten

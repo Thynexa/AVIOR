@@ -65,6 +65,12 @@ trace_row <- function(p, decisions, scores, tests) {
   d <- decisions[[pkg]]
   sp <- if (!is.null(scores)) scores$packages[[pkg]] else NULL
   in_scope <- isTRUE(p$in_scope)
+  # every cell must be a length-1 value: a decision field that is absent
+  # or malformed (a stub without reviewed_by, hand-edited YAML) becomes
+  # NA, never NULL — NULL cells would collapse the data.frame columns
+  cell <- function(v) {
+    if (is.character(v) && length(v) == 1L && !is.na(v)) v else NA_character_
+  }
 
   decision <- if (in_scope) {
     if (!is.null(d)) d$decision else NA_character_
@@ -78,13 +84,15 @@ trace_row <- function(p, decisions, scores, tests) {
 
   test_rows <- Filter(function(r) identical(r$package, pkg),
                       if (!is.null(tests)) tests$results else list())
+  # shared row rule (test_row_passing): "pass" only when EVERY recorded
+  # row for the package is passing evidence — one green file must not
+  # mask a sibling all-skipped/zero-test file in the audit matrix
   test_status <- if (length(test_rows) == 0) {
     NA_character_
-  } else if (any(vapply(test_rows, function(r) (r$failed %||% 0) > 0,
-                        logical(1)))) {
-    "fail"
-  } else {
+  } else if (all(vapply(test_rows, test_row_passing, logical(1)))) {
     "pass"
+  } else {
+    "fail"
   }
   test_files <- if (!is.null(d) && length(d$tests) > 0) {
     paste(unlist(d$tests), collapse = ";")
@@ -97,8 +105,13 @@ trace_row <- function(p, decisions, scores, tests) {
     version = p$version,
     classification = p$classification,
     role = p$role,
-    score = if (in_scope && !is.null(sp)) as.numeric(sp$score) else NA_real_,
-    tier = if (in_scope && !is.null(sp)) sp$tier else NA_character_,
+    score = if (in_scope && !is.null(sp) && is.numeric(sp$score) &&
+                  length(sp$score) == 1L) {
+      as.numeric(sp$score)
+    } else {
+      NA_real_
+    },
+    tier = if (in_scope && !is.null(sp)) cell(sp$tier) else NA_character_,
     decision = decision,
     use_statement_ref = if (in_scope && !is.null(d)) {
       paste0("decisions/", pkg, ".yml#use_statement")
@@ -110,8 +123,10 @@ trace_row <- function(p, decisions, scores, tests) {
     } else {
       NA_character_
     },
-    reviewed_by = if (in_scope && !is.null(d)) d$reviewed_by else NA_character_,
-    decision_date = if (in_scope && !is.null(d)) d$date else NA_character_,
+    reviewed_by = if (in_scope && !is.null(d)) cell(d$reviewed_by) else
+      NA_character_,
+    decision_date = if (in_scope && !is.null(d)) cell(d$date) else
+      NA_character_,
     test_files = test_files,
     test_status = test_status,
     notes = p$note %||% NA_character_
@@ -179,7 +194,19 @@ build_bundle_model <- function(cfg, snap, meta, integrity) {
       read_tolerant(file.path(snap, "decisions", f))
     }),
     sub("\\.yml$", "", dec_files))
-  decisions <- Filter(Negate(is.null), decisions)
+  # keep only decisions satisfying the reader's minimal schema: parseable
+  # YAML that is not a decision record (`foo: bar`) is the same
+  # invalid_decision gate failure --force must survive, so it is treated
+  # as unavailable exactly like an unparseable file
+  scalar_text <- function(v) {
+    is.character(v) && length(v) == 1L && !is.na(v) && nzchar(v)
+  }
+  usable <- vapply(names(decisions), function(pkg) {
+    d <- decisions[[pkg]]
+    !is.null(d) && identical(d$package %||% "", pkg) &&
+      scalar_text(d$decision)
+  }, logical(1))
+  decisions <- decisions[usable]
 
   # signed = a decision that would satisfy the `unsigned` review rule
   # (non-empty reviewed_by), NOT merely a decision file on disk: a --force

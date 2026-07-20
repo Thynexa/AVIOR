@@ -218,13 +218,14 @@ avior_test <- function(root = ".", coverage = FALSE) {
 
   # A file that produced no passing test is NOT evidence: all-skipped and
   # zero-test files must never read as success (issue #30 AC — skip/error
-  # states cannot be silently reported as pass). An empty run (no files)
-  # stays "ok": it claims nothing, and `check` still gates
-  # include_with_tests packages on recorded passing evidence.
-  failed_total <- sum(vapply(rows, function(r) r$failed, integer(1)))
-  no_evidence <- any(vapply(rows, function(r) r$passed == 0L, logical(1)))
+  # states cannot be silently reported as pass). The classification is the
+  # shared test_row_passing() rule that check, the report, and the
+  # traceability matrix also apply. An empty run (no files) stays "ok":
+  # it claims nothing, and `check` still gates include_with_tests
+  # packages on recorded passing evidence.
+  all_passing <- all(vapply(rows, test_row_passing, logical(1)))
   list(
-    status = if (failed_total > 0 || no_evidence) "fail" else "ok",
+    status = if (all_passing) "ok" else "fail",
     results = rows,
     environment = environment_binding,
     testthat_version = api$version,

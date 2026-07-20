@@ -181,11 +181,16 @@ test_that("decisions_signed counts signatures, not decision files", {
 test_that("--force tolerates inputs check already reported as findings", {
   local_bundle_env()
   root <- local_checked_project()
-  # invalid YAML in test-results.yml -> invalid_test_results finding;
-  # unparseable decision -> review finding; both must not crash a forced
-  # compile (FR-BUNDLE-6: --force proceeds with disclosure)
+  dec <- function(f) file.path(root, "validation", "decisions", f)
+  # every flavour of gate failure --force must survive without crashing
+  # (FR-BUNDLE-6): invalid YAML in test-results.yml; an UNPARSEABLE
+  # decision; a parseable decision that is NOT a decision record; and a
+  # schema-valid decision merely missing its signature field
   writeLines("results: [", file.path(root, "validation", "test-results.yml"))
-  writeLines("{{{", file.path(root, "validation", "decisions", "mvtnorm.yml"))
+  writeLines("{{{", dec("mvtnorm.yml"))
+  writeLines("foo: bar", dec("jsonlite.yml"))
+  writeLines(grep("^reviewed_by:", readLines(dec("survival.yml")),
+                  value = TRUE, invert = TRUE), dec("survival.yml"))
   gate <- avior_check(root)
   stopifnot(identical(gate$status, "fail"))
 
@@ -198,11 +203,19 @@ test_that("--force tolerates inputs check already reported as findings", {
   b <- avior:::read_yaml_file(file.path(root, res$path, "BUNDLE.yml"))
   expect_identical(b$integrity_check, "failed")
   expect_identical(b$counts$tests_run, 0L)     # unusable evidence != evidence
-  expect_identical(b$counts$decisions_signed, 3L)
+  # mvtnorm (unparseable) and jsonlite (not a decision record) are
+  # unavailable; survival lost its signature; only lme4 counts as signed
+  expect_identical(b$counts$decisions_signed, 1L)
   # the broken inputs are still snapshot verbatim for the audit trail
   snap <- file.path(root, res$path, "snapshot")
   expect_identical(readLines(file.path(snap, "test-results.yml")),
                    "results: [")
+  expect_identical(readLines(file.path(snap, "decisions", "jsonlite.yml")),
+                   "foo: bar")
+  # unavailable decisions leave blank trace cells rather than crashing
+  csv <- readLines(file.path(root, res$path, "traceability.csv"),
+                   encoding = "UTF-8")
+  expect_match(csv[startsWith(csv, "jsonlite,")], "^jsonlite,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,,")
   # and the bundle still verifies: disclosure, not corruption
   expect_identical(avior_verify(file.path(root, res$path))$status, "pass")
 })

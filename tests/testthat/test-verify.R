@@ -219,6 +219,21 @@ test_that("hostile zips are refused before extraction (exit 2)", {
   expect_s3_class(err, "avior_error")
   expect_match(conditionMessage(err), "more than once")
 
+  # non-ASCII entry names are refused outright: NFC ("caf\u00e9") and NFD
+  # ("cafe\u0301") are distinct entries on Linux but alias ONE path on
+  # default macOS filesystems, which tolower() cannot detect; transport
+  # zips only ever carry ASCII bundle paths
+  for (name in c("caf\u00e9.txt", "cafe\u0301.txt")) {
+    z <- tempfile(fileext = ".zip")
+    entries <- list(content)
+    names(entries) <- name
+    avior:::zip_write_entries(z, entries)
+    err <- tryCatch(avior_verify(z), avior_error = function(e) e)
+    expect_s3_class(err, "avior_error")
+    expect_match(conditionMessage(err), "non-ASCII")
+    unlink(z)
+  }
+
   # no file escaped into the extraction parent
   leaks <- list.files(tempdir(), pattern = "escape|owned", recursive = TRUE)
   expect_length(leaks, 0L)

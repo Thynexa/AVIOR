@@ -72,6 +72,32 @@ test_that("report_document follows the GAMP 5 narrative structure", {
   expect_match(banner, "failing_tests, stale_tests")
 })
 
+test_that("all-skipped rows read FAIL in the report and the trace (shared rule)", {
+  m <- mini_model()
+  skip_row <- list(file = "tests/test-alpha-skip.R", package = "alpha",
+                   package_version = "1.0.0", tests = 1L, passed = 0L,
+                   failed = 0L, skipped = 1L, duration_s = 0.1)
+  m$tests$results <- c(m$tests$results, list(skip_row))
+
+  # report section 6: the skipped row must not display as pass
+  doc <- avior:::report_document(m, en_strings())
+  tables <- Filter(function(b) identical(b$type, "table"), doc)
+  sec6 <- Filter(function(b) any(grepl("Test file", b$header)), tables)[[1]]
+  status_of <- function(file) {
+    row <- Filter(function(r) identical(r[1], file), sec6$rows)[[1]]
+    row[length(row)]
+  }
+  expect_identical(status_of("tests/test-alpha.R"), "pass")
+  expect_identical(status_of("tests/test-alpha-skip.R"), "FAIL")
+
+  # traceability: one green file must not mask the all-skipped sibling
+  row <- avior:::trace_row(
+    list(name = "alpha", version = "1.0.0", classification = "contributed",
+         role = "direct", in_scope = TRUE),
+    decisions = m$decisions, scores = m$scores, tests = m$tests)
+  expect_identical(row$test_status, "fail")
+})
+
 test_that("the English HTML report is self-contained, complete, and ASCII-clean", {
   out <- tempfile("report-"); dir.create(out)
   on.exit(unlink(out, recursive = TRUE), add = TRUE)
