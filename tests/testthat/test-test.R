@@ -12,6 +12,16 @@ local_with_dir <- function(dir, code) {
   force(code)
 }
 
+# Running testthat::test_file() NESTED inside the suite corrupts covr's
+# trace collection (package coverage reads 0% across every file), so the
+# tests that genuinely execute targeted tests are skipped under coverage.
+# Mapping validation, discovery, and writer logic still run there.
+skip_if_covr <- function() {
+  testthat::skip_if(
+    requireNamespace("covr", quietly = TRUE) && covr::in_covr(),
+    "nested testthat::test_file corrupts covr tracing")
+}
+
 local_targeted_project <- function(env = parent.frame()) {
   root <- tempfile("targeted-")
   dir.create(file.path(root, "analysis"), recursive = TRUE)
@@ -74,6 +84,7 @@ test_results_of <- function(root) {
 }
 
 test_that("avior test runs targeted tests and writes canonical evidence", {
+  skip_if_covr()
   root <- local_targeted_project()
   write_test_file(root, "test-digest.R", passing_test("digest"))
   write_test_file(root, "test-yaml.R", c(
@@ -118,6 +129,7 @@ test_that("avior test runs targeted tests and writes canonical evidence", {
 })
 
 test_that("failed and skipped states are never reported as pass", {
+  skip_if_covr()
   root <- local_targeted_project()
   write_test_file(root, "test-digest.R", c(
     "# avior-package: digest",
@@ -136,6 +148,7 @@ test_that("failed and skipped states are never reported as pass", {
 })
 
 test_that("re-running with a mocked timer is byte-identical (FR-X-8)", {
+  skip_if_covr()
   root <- local_targeted_project()
   write_test_file(root, "test-digest.R", passing_test("digest"))
 
@@ -186,6 +199,7 @@ test_that("mapping defects are aggregated execution errors naming each file", {
 })
 
 test_that("stray .R files under tests/ are execution errors; support files pass", {
+  skip_if_covr()
   root <- local_targeted_project()
   write_test_file(root, "test-digest.R", passing_test("digest"))
   write_test_file(root, "helper-setup.R", "shared <- 1")
@@ -210,6 +224,7 @@ test_that("an empty or absent tests/ dir records empty evidence", {
 })
 
 test_that("avior test closes the loop with avior check (FR-TEST-2)", {
+  skip_if_covr()
   test_finding_types <- c("stale_tests", "failing_tests", "missing_test_results",
                           "missing_test_environment", "invalid_test_results")
   root <- local_targeted_project()
@@ -246,6 +261,7 @@ test_that("avior test closes the loop with avior check (FR-TEST-2)", {
 })
 
 test_that("--coverage collects a reference metric only and never fails the run", {
+  skip_if_covr()
   root <- local_targeted_project()
   write_test_file(root, "test-digest.R", passing_test("digest"))
   res <- avior_test(root, coverage = TRUE)
@@ -257,6 +273,7 @@ test_that("--coverage collects a reference metric only and never fails the run",
 })
 
 test_that("CLI: test maps status to exit codes and emits stable JSON", {
+  skip_if_covr()
   root <- local_targeted_project()
   write_test_file(root, "test-digest.R", passing_test("digest"))
   local_with_dir(root, {

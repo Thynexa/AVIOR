@@ -12,7 +12,9 @@ local_mini_bundle <- function(env = parent.frame()) {
   manifest <- vapply(rels, function(p) {
     paste0(avior:::sha256_file(file.path(dir, p)), "  ", p)
   }, character(1))
-  writeLines(manifest, file.path(dir, "MANIFEST.sha256"))
+  # write_lines_lf, not writeLines: the strict parser requires LF-only
+  # manifests, and writeLines emits CRLF on Windows
+  avior:::write_lines_lf(manifest, file.path(dir, "MANIFEST.sha256"))
   withr_defer_dir(dirname(dir), env)
   dir
 }
@@ -111,7 +113,7 @@ test_that("manifest mutations are typed malformed/duplicate findings", {
     dir <- local_mini_bundle()
     mpath <- file.path(dir, "MANIFEST.sha256")
     lines <- readLines(mpath)
-    writeLines(cases[[i]]$mut(lines), mpath)
+    avior:::write_lines_lf(cases[[i]]$mut(lines), mpath)
     res <- avior_verify(dir)
     expect_identical(res$status, "fail", label = paste("case", i, "status"))
     expect_true(cases[[i]]$type %in% finding_types(res),
@@ -124,7 +126,7 @@ test_that("a blank interior line does not hide later corruption", {
   dir <- local_mini_bundle()
   mpath <- file.path(dir, "MANIFEST.sha256")
   lines <- readLines(mpath)
-  writeLines(c(lines[1], "", lines[-1]), mpath)
+  avior:::write_lines_lf(c(lines[1], "", lines[-1]), mpath)
   res <- avior_verify(dir)
   expect_identical(res$status, "fail")
   malformed <- Filter(function(f) f$type == "malformed", res$findings)
@@ -152,7 +154,7 @@ test_that("findings order is deterministic: category then path", {
   writeLines("x", file.path(dir, "zzz-extra"))            # unexpected
   writeLines("y", file.path(dir, "aaa-extra"))            # unexpected
   mpath <- file.path(dir, "MANIFEST.sha256")
-  writeLines(c("bogus line", readLines(mpath)), mpath)    # malformed + unsorted-safe
+  avior:::write_lines_lf(c("bogus line", readLines(mpath)), mpath)  # malformed
   res <- avior_verify(dir)
   types <- finding_types(res)
   # category order is fixed: malformed < missing < unexpected here
