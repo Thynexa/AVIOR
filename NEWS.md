@@ -77,10 +77,12 @@
   `reviewed_by` are preserved as text rather than silently dropped). The
   same exact-version rule guards the inventory and scores read
   boundaries: `avior check` fails closed with `invalid_inventory`/
-  `invalid_scores` findings, command-side readers refuse with an
-  execution error, and a forced bundle keeps an unknown-schema
-  `scores.yml` snapshot verbatim without interpreting it (an
-  unknown-schema inventory cannot be compiled at all), and
+  `invalid_scores` findings for unparseable YAML and unknown schema
+  versions alike (a raw parser error can never escape the gate),
+  command-side readers refuse with an execution error, and a forced
+  bundle keeps an unknown-schema or malformed `scores.yml` snapshot
+  verbatim without interpreting it (an uninterpretable inventory cannot
+  be compiled at all), and
   `counts.decisions_signed` counts decisions with a non-empty
   `reviewed_by` signature, not decision files on disk. Existing bundles
   are never overwritten

@@ -217,12 +217,14 @@ build_bundle_model <- function(cfg, snap, meta, integrity) {
     p <- file.path(snap, name)
     if (file.exists(p)) read_tolerant(p) else NULL
   }
-  inventory <- read_yaml_file(file.path(snap, "inventory.yml"))
+  inventory <- tryCatch(
+    read_yaml_file(file.path(snap, "inventory.yml")),
+    error = function(e) NULL)
   if (!is.list(inventory) || !avior_schema_v1(inventory$avior)) {
     avior_abort(paste0(
-      "cannot compile a bundle from an inventory with a missing or ",
-      "unsupported schema version (expected avior: 1, FR-X-6); ",
-      "re-run `avior scan`"))
+      "cannot compile a bundle from an inventory that cannot be parsed ",
+      "or has a missing/unsupported schema version (expected avior: 1, ",
+      "FR-X-6); re-run `avior scan`"))
   }
   scores <- read_opt("scores.yml")
   tests <- read_opt("test-results.yml")
@@ -358,12 +360,14 @@ avior_bundle <- function(root = ".", force = FALSE, zip = FALSE) {
   snap <- bundle_snapshot(cfg, staging)
 
   session <- capture_session()
-  inventory <- read_yaml_file(file.path(snap, "inventory.yml"))
+  inventory <- tryCatch(
+    read_yaml_file(file.path(snap, "inventory.yml")),
+    error = function(e) NULL)
   if (!is.list(inventory) || !avior_schema_v1(inventory$avior)) {
     avior_abort(paste0(
-      "cannot compile a bundle from an inventory with a missing or ",
-      "unsupported schema version (expected avior: 1, FR-X-6); ",
-      "re-run `avior scan`"))
+      "cannot compile a bundle from an inventory that cannot be parsed ",
+      "or has a missing/unsupported schema version (expected avior: 1, ",
+      "FR-X-6); re-run `avior scan`"))
   }
   scores <- if (file.exists(file.path(snap, "scores.yml"))) {
     # tolerate what check already reported as a finding (forced compiles),

@@ -243,6 +243,28 @@ test_that("unknown scores schema is snapshot verbatim but never interpreted", {
   expect_true("avior: 2" %in% snap_scores)
 })
 
+test_that("malformed scores YAML reaches the same forced snapshot path", {
+  local_bundle_env(epoch = "1752000002")
+  root <- local_checked_project()
+  # yaml parser errors are plain simpleErrors: the gate must report
+  # invalid_scores (not crash), and the forced compile must keep the
+  # snapshot verbatim without interpreting it
+  writeLines(c("avior: 1", "packages: ["),
+             file.path(root, "validation", "scores.yml"))
+  gate <- avior_check(root)
+  expect_identical(gate$status, "fail")
+  expect_true("invalid_scores" %in%
+                vapply(gate$findings, function(x) x$type, character(1)))
+
+  res <- avior_bundle(root, force = TRUE)
+  expect_identical(res$status, "ok")
+  b <- avior:::read_yaml_file(file.path(root, res$path, "BUNDLE.yml"))
+  expect_identical(b$counts$assessed, 0L)
+  expect_identical(
+    readLines(file.path(root, res$path, "snapshot", "scores.yml")),
+    c("avior: 1", "packages: ["))
+})
+
 test_that("an unknown inventory schema cannot be compiled, even forced", {
   local_bundle_env()
   root <- local_checked_project()

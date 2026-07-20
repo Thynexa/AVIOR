@@ -262,6 +262,23 @@ test_that("unknown inventory/scores schema versions fail closed (FR-X-6)", {
   res2 <- avior_check(root2)
   expect_identical(res2$status, "fail")
   expect_true("invalid_scores" %in% check_types(res2))
+
+  # malformed YAML in either artifact is the same fail-closed finding,
+  # not a parser crash: a raw yaml error is a plain simpleError that
+  # must never escape the gate
+  root3 <- local_example_project()
+  writeLines(c("avior: 1", "packages: ["),
+             file.path(root3, "validation", "scores.yml"))
+  res3 <- avior_check(root3)
+  expect_identical(res3$status, "fail")
+  expect_true("invalid_scores" %in% check_types(res3))
+
+  root4 <- local_example_project()
+  writeLines(c("avior: 1", "packages: ["),
+             file.path(root4, "validation", "inventory.yml"))
+  res4 <- avior_check(root4)
+  expect_identical(res4$status, "fail")
+  expect_true("invalid_inventory" %in% check_types(res4))
 })
 
 test_that("unknown test-results schema versions are invalid evidence (FR-X-6)", {

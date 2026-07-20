@@ -290,15 +290,16 @@ avior_check <- function(root = ".") {
       fix = "run `avior scan` first")))
     return(list(status = "fail", findings = findings))
   }
-  inventory <- read_yaml_file(inv_path)
+  inventory <- tryCatch(read_yaml_file(inv_path), error = function(e) NULL)
 
-  # FR-X-6 fail-closed: an inventory in an unknown (missing or future)
-  # schema cannot be interpreted, so none of the downstream rules can run
-  # against it — one structured finding, never a crash and never a pass
+  # FR-X-6 fail-closed: an inventory that cannot be parsed or carries an
+  # unknown (missing or future) schema cannot be interpreted, so none of
+  # the downstream rules can run against it — one structured finding,
+  # never a crash and never a pass
   if (!is.list(inventory) || !avior_schema_v1(inventory$avior)) {
     findings <- c(findings, list(finding(
       "-", "invalid_inventory",
-      "inventory.yml has a missing or unsupported schema version (expected avior: 1) -- its contents cannot be interpreted (FR-X-6)",
+      "inventory.yml cannot be parsed, or has a missing/unsupported schema version (expected avior: 1) -- its contents cannot be interpreted (FR-X-6)",
       fix = "re-run `avior scan` to regenerate the inventory")))
     return(list(status = "fail", findings = findings))
   }

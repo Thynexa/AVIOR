@@ -8,7 +8,13 @@ read_scores <- function(cfg) {
   if (!file.exists(path)) {
     avior_abort(paste0("scores not found: ", path, " (run `avior assess` first)"))
   }
-  scores <- read_yaml_file(path)
+  # every failure mode of this semantic boundary is an avior_error: the
+  # yaml parser throws a plain simpleError, which would otherwise slip
+  # past callers that fail closed on avior_error (review_findings)
+  scores <- tryCatch(read_yaml_file(path), error = function(e) {
+    avior_abort(paste0("cannot parse ", path, ": ", conditionMessage(e),
+                       "; re-run `avior assess`"))
+  })
   # FR-X-6 at the semantic read boundary (same rule as read_inventory)
   if (!is.list(scores) || !avior_schema_v1(scores$avior)) {
     avior_abort(paste0(path, " has a missing or unsupported schema version ",
