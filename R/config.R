@@ -26,7 +26,9 @@ config_defaults <- function() {
       medium = "use_statement_required",
       high = "targeted_tests_required"
     ),
-    report = list(formats = c("html", "docx"), language = "zh")
+    # English-first delivery (issue #33): zh stays a fail-closed placeholder
+    # locale until a complete translation ships
+    report = list(formats = c("html", "docx"), language = "en")
   )
 }
 

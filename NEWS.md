@@ -51,6 +51,24 @@
   Report rendering is a clean boundary consumed by the report milestone
   (#33).
 
+* English validation report (issue #33, supersedes the PRD's "Chinese V1"
+  language decision — PRD revised to v1.8): `avior bundle` now renders
+  `report.html` and `report.docx` through a built-in, dependency-free
+  renderer (hand-written self-contained HTML; minimal OOXML DOCX packed
+  with the deterministic zip writer — no Quarto/pandoc system
+  prerequisite). The report follows the GAMP 5 narrative (methodology and
+  four criteria; the fixed scope-and-boundary statement with layered
+  base/recommended exemption sourcing; scope and classification; scoring
+  and thresholds; decision summary; targeted-test evidence; environment
+  and reproducibility; per-package appendix plus an integrity appendix).
+  A `--force`d bundle displays the integrity failure prominently on the
+  cover of both formats. All narrative strings are externalized in
+  versioned locale tables (`inst/report/locales/`): `en` is complete;
+  `zh` is a schema-identical placeholder (`status: placeholder`) that
+  fails closed with an actionable error if selected, so a partial or
+  mixed-language report can never be emitted. `avior init` and the config
+  defaults now select English (`report.language: en`).
+
 ## Packaging, documentation, and community
 
 * Added the full Apache-2.0 license text (`LICENSE.md`), matching the

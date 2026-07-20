@@ -157,6 +157,10 @@ build_bundle_model <- function(cfg, snap, meta, integrity) {
   scores <- read_opt("scores.yml")
   tests <- read_opt("test-results.yml")
   policy <- read_yaml_file(file.path(snap, "avior.yml"))
+  # the report states EFFECTIVE thresholds: a policy file that omits
+  # risk_tiers runs on the validated defaults, so the model carries the
+  # merged values (cfg is loaded from the same file the snapshot copies)
+  policy$policy$risk_tiers <- cfg$policy$risk_tiers
   dec_files <- sort_c(list.files(file.path(snap, "decisions"),
                                  pattern = "\\.yml$"))
   decisions <- stats::setNames(
@@ -224,6 +228,10 @@ write_manifest <- function(staging) {
 
 avior_bundle <- function(root = ".", force = FALSE, zip = FALSE) {
   cfg <- avior_config_load(root)
+
+  # fail closed BEFORE any write: an unavailable report language/format
+  # must never leave a partial bundle behind (issue #33)
+  report_config_validate(cfg$report)
 
   gate <- bundle_gate(root, force)
   if (!gate$proceed) {
