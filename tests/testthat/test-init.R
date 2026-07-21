@@ -54,6 +54,9 @@ test_that("init --ci github generates the workflow deterministically (FR-INIT-3)
   expect_true(file.exists(wf))
   expect_true(any(grepl(file.path(".github", "workflows", "avior.yml"),
                         res$created, fixed = TRUE)))
+  lines <- readLines(wf)
+  expect_true(any(grepl('pak::pak("Thynexa/AVIOR")', lines, fixed = TRUE)))
+  expect_false(any(grepl('install.packages("avior")', lines, fixed = TRUE)))
   first <- readBin(wf, "raw", file.size(wf))
   # LF-only content, ends with a newline (FR-X-8)
   expect_false(any(first == as.raw(0x0d)))
@@ -73,6 +76,9 @@ test_that("init --ci gitlab generates .gitlab-ci.yml and keeps existing files", 
   cfgfile <- file.path(root, ".gitlab-ci.yml")
   expect_true(file.exists(cfgfile))
   expect_true(any(grepl(".gitlab-ci.yml", res$created, fixed = TRUE)))
+  lines <- readLines(cfgfile)
+  expect_true(any(grepl('pak::pak("Thynexa/AVIOR")', lines, fixed = TRUE)))
+  expect_false(any(grepl('install.packages("avior")', lines, fixed = TRUE)))
 
   # an existing (possibly hand-edited) CI file is NEVER overwritten
   writeLines("stages: [mine]", cfgfile)

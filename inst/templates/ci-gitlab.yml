@@ -12,7 +12,7 @@ avior-check:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
   script:
-    # TODO: adapt this line to how your organisation installs avior
-    # (internal CRAN-like repository, r-universe, or a vendored tarball).
-    - Rscript -e 'install.packages("avior")'
+    # Pin this source to a release/SHA, or replace it with your organisation's
+    # internal CRAN-like repository, r-universe, or vendored tarball.
+    - Rscript -e 'install.packages("pak"); pak::pak("Thynexa/AVIOR")'
     - Rscript -e 'quit(save = "no", status = avior::main(c("check", "--format", "json")))'
