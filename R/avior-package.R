@@ -1,6 +1,6 @@
 # avior — validation evidence compiler for R package environments.
 #
-# Layering (see docs/superpowers/plans/2026-07-12-avior-m1-core-pipeline.md):
+# Layering (see docs/PRD.md for the architecture and milestone context):
 #   canonical.R  — FR-X-8 canonical serialization; every artifact goes through it
 #   utils.R      — hashing, error classes, shared helpers
 #   config.R     — avior.yml loading + schema validation

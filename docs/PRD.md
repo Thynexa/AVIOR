@@ -6,7 +6,7 @@
 | 产品名 | **AVIOR** — Automated Validation and Inspection for Operational R-packages |
 | 命名来源 | 船底座 ε（Avior），神话中阿尔戈号的龙骨 —— 验证体系的龙骨 |
 | CLI / R 包名 | `avior` |
-| 文档版本 | v1.7（开发基线；本文件取代《ValiR PRD》v0.1（`docs/ValiR-PRD.md`），后者保留作历史参考） |
+| 文档版本 | v1.7（开发基线；本文件取代《ValiR PRD》v0.1，后者已随仓库公开清理移除） |
 | 文档状态 | 定稿。后续变更通过 PR 修订本文件，重大范围变更须先对照 §2 设计公理 |
 | 编制日期 | 2026-07-08 |
 | 依据 | 《R 包验证策略对比分析与实施方案》《评审意见与聚焦规划》 |
@@ -497,7 +497,7 @@ avior_engine(
 | v1.3 | 2026-07-10 | 落实评审后续项（issues #7/#8）：§10-#3 显式限定字节级可复现仅覆盖数据产物、报告需 `SOURCE_DATE_EPOCH`（与 NFR-1 对齐）；§6.5 明确 `use_statement_ref` 为字段锚点（`decisions/<pkg>.yml#use_statement`），与 `decision_file` 分工 |
 | v1.4 | 2026-07-10 | 落实 issue #11（NFR-6 可移植性）：根目录文档迁入 `docs/` 并 ASCII 化文件名（本文件原名 `AVIOR PRD.md`），内容无变更；索引见 `docs/README.md` |
 | v1.5 | 2026-07-10 | 落实 issue #15：新增 FR-X-7 确定性排序——生成物包序为包名字母序（C locale），`test-results.yml` 按测试文件路径、manifest 按相对路径；示例文件同步整理 |
-| v1.6 | 2026-07-12 | 落实《产品设计方向与路线评审》（`docs/product-design-review.md`）A/B/C 级处置：A1 新增 FR-X-8 规范化序列化；A2 §6.5 定义 transitive 行 `version_managed` 状态值；A3 FR-BUNDLE-2/5、§6.4 环境指纹扩展（locale/BLAS/容器摘要/`session-info.txt`）；A4 FR-TEST-2 测试结果环境绑定；A5 FR-BUNDLE-3 增「范围与边界声明」固定章节（含 R-FDA.pdf 豁免出处）；A6 FR-CHECK-2 增 `excluded_but_present` 红灯；B1 §7.2 指标成本档（`execution` 默认不批量、注册表可静态获取）；B2 FR-X-5/FR-ASSESS-3 缓存 NA 感知与生效权重披露；B3 FR-BUNDLE-1 zip 定义为传输件；B4 §6.3 预留 `assessment_type`/`supersedes`；B5 NFR-5 拆分 5a/5b；C1 §10-5 度量口径（无 telemetry）；文档版本号自 v1.1 起未随修订记录更新，本次一并对齐。评审子代理复核后修正：FR-X-5 区分 NA 成因（network/execution，防默认策略下重评循环）；§6.2 增 init 默认模板说明（默认权重仅 metadata/network 档，测试准则由 `remote_checks` 承担）；FR-ASSESS-1/AC 增 `run: { deep, network }` 运行模式披露；FR-X-8 细化 flow map 逐产物指明、JSON 风格、CSV 非 ASCII 加引号；§5.6 zip AC 条件化 |
+| v1.6 | 2026-07-12 | 落实《产品设计方向与路线评审》A/B/C 级处置：A1 新增 FR-X-8 规范化序列化；A2 §6.5 定义 transitive 行 `version_managed` 状态值；A3 FR-BUNDLE-2/5、§6.4 环境指纹扩展（locale/BLAS/容器摘要/`session-info.txt`）；A4 FR-TEST-2 测试结果环境绑定；A5 FR-BUNDLE-3 增「范围与边界声明」固定章节（含 R-FDA.pdf 豁免出处）；A6 FR-CHECK-2 增 `excluded_but_present` 红灯；B1 §7.2 指标成本档（`execution` 默认不批量、注册表可静态获取）；B2 FR-X-5/FR-ASSESS-3 缓存 NA 感知与生效权重披露；B3 FR-BUNDLE-1 zip 定义为传输件；B4 §6.3 预留 `assessment_type`/`supersedes`；B5 NFR-5 拆分 5a/5b；C1 §10-5 度量口径（无 telemetry）；文档版本号自 v1.1 起未随修订记录更新，本次一并对齐。评审子代理复核后修正：FR-X-5 区分 NA 成因（network/execution，防默认策略下重评循环）；§6.2 增 init 默认模板说明（默认权重仅 metadata/network 档，测试准则由 `remote_checks` 承担）；FR-ASSESS-1/AC 增 `run: { deep, network }` 运行模式披露；FR-X-8 细化 flow map 逐产物指明、JSON 风格、CSV 非 ASCII 加引号；§5.6 zip AC 条件化 |
 | v1.7 | 2026-07-12 | **补录**——以下两处契约修订已随实现期评审 PR 合并（PR #17 `df1f047`、PR #18 `c47e445`），本条补齐修订台账：① FR-BUNDLE-3 豁免依据分层署名——R-FDA.pdf 仅支持「属官方发行范围、经 R Core SDLC 维护」的事实（该文档不下「低风险」结论），「默认豁免（低风险起点）」为 AVIOR 策略默认值、风险分级出处为白皮书四准则，可经 `scope.include` 拉回；② FR-SCAN-3 定义扫描不完整契约——不可解析的源码文件不得静默跳过，记入 inventory 可选 `scan: { complete: false, skipped_files }` 段（C locale 排序；完整扫描时省略该段，干净项目 inventory 字节不变），`avior scan` 返回非成功（退出码 1），`check` 报红（`scan_incomplete`）。另：M1（`init`/`scan`/`assess`/`review` + 适配层 + 缓存 + 提前的 `check`）已实现并合并（PR #18/#19），M0/M1 里程碑代码侧完成；M0 出口标准中「design partner QA 审阅样例」仍待执行 |
 | v1.8 | 2026-07-20 | 落实 M2 实现（issues #30–#33）：① 报告语言顺序反转（Q4/§4/§9/FR-BUNDLE-3 联动）——V1 交付完整英文报告，中文降为 schema 同构占位 locale（`status: placeholder`，选择即显式报错，绝不产出混语报告），翻译移至 V1.1；② §7.3「报告引擎」ADR 由 Quarto 改为内建自足渲染器（纯 R HTML + 最小 OOXML docx，确定性 stored-zip 打包，零系统前置依赖），§7.1 架构图与 §10 风险表同步，PDF 维持 V1 之外；③ §6.5 补充定义范围外 direct 行的行级状态值：`scope.exclude` 排除填 `excluded`、默认豁免未拉回填 `exempt`（score/tier/引用列留空，与 transitive 行同型）；④ `avior test`/`verify`/`bundle` 与英文报告随本轮实现落地（FR-TEST-1..3、FR-VERIFY-1..3、FR-BUNDLE-1,2,4..8） |
 
