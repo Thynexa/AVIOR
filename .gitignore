@@ -1,2 +1,8 @@
 .DS_Store
 .worktrees/
+
+# Local AI-assisted development tooling (not part of the package)
+.agents/
+.claude/
+.superpowers/
+skills-lock.json

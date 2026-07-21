@@ -5,6 +5,7 @@
 ^\.github$
 ^\.git$
 ^\.superpowers$
+^\.worktrees$
 ^skills-lock\.json$
 ^\.gitignore$
 ^\.lintr$

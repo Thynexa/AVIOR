@@ -101,16 +101,11 @@ AVIOR/
 ├── docs/                            # Project documentation
 │   ├── README.md                    # Documentation index
 │   ├── PRD.md                       # ⭐ Development baseline (controlled; see its revision log)
-│   ├── ValiR-PRD.md                 # Historical reference: platform-shaped PRD v0.1, superseded
-│   ├── design-review.md             # Review notes: platform → CLI-tool scope narrowing
-│   ├── product-design-review.md     # Design & roadmap review against the PRD baseline
 │   ├── r-regulatory-submission-research.md  # Methodology research
 │   ├── r-package-validation-strategy.md     # Validation strategy analysis
-│   └── superpowers/plans/           # Implementation plans (M0 contract fixes + M1 — both completed)
-├── examples/
-│   └── minimal-project/            # M0 hand-assembled example bundle (5 packages, all key scenarios)
-├── .claude/skills/  ·  .agents/skills/   # Vendored "superpowers" skills for AI-assisted development
-└── skills-lock.json
+│   └── riskmetric-spike-results.md          # riskmetric engine spike results
+└── examples/
+    └── minimal-project/             # M0 hand-assembled example bundle (5 packages, all key scenarios)
 ```
 
 ### Where to start reading
@@ -120,7 +115,6 @@ AVIOR/
 | Looking for the full product picture | [`PRD.md`](./docs/PRD.md) — positioning, axioms, CLI, file contracts, milestones |
 | Wondering what a bundle looks like | [`examples/minimal-project/`](./examples/minimal-project/) — a readable hand-built sample with a QA/auditor reading guide |
 | Interested in the methodology | [`r-regulatory-submission-research.md`](./docs/r-regulatory-submission-research.md) — regulatory background and tool-chain comparison |
-| Curious why the scope is what it is | [`design-review.md`](./docs/design-review.md) — the reasoning behind narrowing from a platform to a CLI tool |
 
 ### Methodology anchors
 
@@ -230,16 +224,11 @@ AVIOR/
 ├── docs/                            # 项目文档
 │   ├── README.md                    # 文档索引
 │   ├── PRD.md                       # ⭐ 开发基线（受控文档，版本见其修订记录）
-│   ├── ValiR-PRD.md                 # 历史参考：被 PRD 取代的平台版 PRD v0.1
-│   ├── design-review.md             # 从「平台」收敛到「CLI 工具」的评审决策
-│   ├── product-design-review.md     # 对照 PRD 基线的设计方向与路线评审
 │   ├── r-regulatory-submission-research.md  # 方法论调研
 │   ├── r-package-validation-strategy.md     # R 包验证策略分析
-│   └── superpowers/plans/           # 实施计划（M0 契约修复 + M1，均已完成）
-├── examples/
-│   └── minimal-project/            # M0 手工样例证据包（5 包，覆盖所有关键情形）
-├── .claude/skills/  ·  .agents/skills/   # 供 AI 辅助开发的 superpowers 技能集
-└── skills-lock.json
+│   └── riskmetric-spike-results.md          # riskmetric 引擎 spike 结果
+└── examples/
+    └── minimal-project/             # M0 手工样例证据包（5 包，覆盖所有关键情形）
 ```
 
 ### 从哪里开始读
@@ -249,7 +238,6 @@ AVIOR/
 | 想了解产品全貌 | [`PRD.md`](./docs/PRD.md) —— 定位、公理、CLI、文件契约、里程碑一应俱全 |
 | 想看证据包长什么样 | [`examples/minimal-project/`](./examples/minimal-project/) —— 一份可读的手工样例，附 QA/审计员阅读指引 |
 | 想理解方法论出处 | [`r-regulatory-submission-research.md`](./docs/r-regulatory-submission-research.md) —— 监管背景与工具链对比 |
-| 想知道范围为何这样定 | [`design-review.md`](./docs/design-review.md) —— 平台版到 CLI 版的收敛逻辑 |
 
 ### 方法论锚点
 
